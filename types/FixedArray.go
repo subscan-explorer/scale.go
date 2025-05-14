@@ -49,6 +49,9 @@ func (f *FixedArray) TypeStructString() string {
 
 func (f *FixedArray) Encode(value interface{}) string {
 	var raw string
+	if f.FixedLength == 1 {
+		return EncodeWithOpt(f.SubType, value, &ScaleDecoderOption{Spec: f.Spec, Metadata: f.Metadata})
+	}
 	if reflect.TypeOf(value).Kind() == reflect.String && value.(string) == "" {
 		return ""
 	}
