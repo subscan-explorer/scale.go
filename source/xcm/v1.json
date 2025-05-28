@@ -40,7 +40,7 @@
       ],
       [
         "Transact",
-        "[[\"originType\", \"XcmOriginKind\"], [\"requireWeightAtMost\", \"u64\"], [\"call\", \"DoubleEncodedCall\"]]"
+        "[[\"originType\", \"XcmOriginKind\"], [\"requireWeightAtMost\", \"Compact<u64>\"], [\"call\", \"DoubleEncodedCall\"]]"
       ],
       [
         "HrmpNewChannelOpenRequest",

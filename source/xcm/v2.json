@@ -215,7 +215,7 @@
       ],
       [
         "Transact",
-        "[[\"originType\", \"OriginKindV2\"], [\"requireWeightAtMost\", \"u64\"], [\"call\", \"DoubleEncodedCall\"]]"
+        "[[\"originType\", \"OriginKindV2\"], [\"require_weight_at_most\", \"Compact<u64>\"], [\"call\", \"Vec<u8>\"]]"
       ],
       [
         "HrmpNewChannelOpenRequest",
