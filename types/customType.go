@@ -55,7 +55,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 			if explainedType, ok := registry[typeString]; ok {
 				if explainedType.Type == "string" {
 					TypeRegistryLock.RLock()
-					instant := TypeRegistry[strings.ToLower(explainedType.TypeString)]
+					instant = TypeRegistry[strings.ToLower(explainedType.TypeString)]
 					TypeRegistryLock.RUnlock()
 					if instant != nil {
 						regCustomKey(key, instant)
@@ -118,6 +118,17 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 						SubType:     strings.TrimSpace(typePart[0]),
 					}
 					regCustomKey(key, &fixed)
+					continue
+				}
+			}
+			// result
+			if strings.HasPrefix(typeString, "Result<") && strings.HasSuffix(typeString, ">") {
+				reg := regexp.MustCompile("^Result<(.+)>$")
+				typeParts := reg.FindStringSubmatch(typeString)
+				if len(typeParts) > 1 {
+					r := Result{}
+					r.SubType = typeParts[1]
+					regCustomKey(key, &r)
 					continue
 				}
 			}

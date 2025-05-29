@@ -1,7 +1,7 @@
 package contract
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/itering/scale.go/types"
@@ -9,7 +9,7 @@ import (
 )
 
 func Test_AbiParse(t *testing.T) {
-	c, err := ioutil.ReadFile("metadata.json")
+	c, err := os.ReadFile("metadata.json")
 	assert.NoError(t, err)
 
 	abi, err := InitAbi(c)

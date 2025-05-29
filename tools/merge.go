@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +28,7 @@ func main() {
 	for _, filePath := range files {
 		if splitArr := strings.Split(filePath, "."); splitArr[len(splitArr)-1] == "json" {
 			sourceFile = append(sourceFile, filePath)
-			c, _ := ioutil.ReadFile(filePath)
+			c, _ := os.ReadFile(filePath)
 			local := make(map[string]interface{})
 			_ = json.Unmarshal(c, &local)
 			for key, value := range local {
@@ -54,7 +53,7 @@ func FilePathWalkDir(root string) ([]string, error) {
 }
 
 func writeToFile(target, content string) {
-	err := ioutil.WriteFile(target, []byte(content), 0644)
+	err := os.WriteFile(target, []byte(content), 0644)
 	if err != nil {
 		panic(err)
 	}

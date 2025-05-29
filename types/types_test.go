@@ -373,3 +373,10 @@ func TestU256(t *testing.T) {
 	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("0x00b5070000000000000000000000000000000000000000000000000000000000")}, nil)
 	assert.Equal(t, int64(505088), m.ProcessAndUpdateData("U256").(decimal.Decimal).IntPart())
 }
+
+func TestXcmV2ResultType(t *testing.T) {
+	raw := "0204031501020042f2f9dc"
+	m := ScaleDecoder{}
+	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(raw)}, nil)
+	assert.Equal(t, `{"V2":[{"QueryResponse":{"max_weight":0,"query_id":69,"response":{"ExecutionResult":{"Ok":3707368002}}}}]}`, utiles.ToString(m.ProcessAndUpdateData("VersionedXcm").(map[string]interface{})))
+}
