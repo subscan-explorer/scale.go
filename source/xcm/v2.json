@@ -292,6 +292,14 @@
       [
         "Trap",
         "u64"
+      ],
+      [
+        "SubscribeVersion",
+        "[[\"query_id\", \"Compact<u64>\"], [\"max_response_weight\", \"Compact<u64>\"]]"
+      ],
+      [
+        "UnsubscribeVersion",
+        "NULL"
       ]
     ],
     "type": "enum"
