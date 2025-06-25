@@ -216,6 +216,9 @@ func (e *ExtrinsicDecoder) Process() {
 			e.ExtrinsicHash = e.generateHash()
 		}
 		e.CallIndex = utiles.BytesToHex(e.NextBytes(2))
+	} else if e.VersionInfo == "45" {
+		e.NextBytes(4)
+		e.CallIndex = utiles.BytesToHex(e.NextBytes(2))
 	} else {
 		panic(fmt.Sprintf("Extrinsics version %s is not support", e.VersionInfo))
 	}
