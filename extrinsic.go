@@ -62,22 +62,29 @@ func (e *ExtrinsicDecoder) Init(data scaleBytes.ScaleBytes, option *scaleType.Sc
 	e.ScaleDecoder.Init(data, option)
 }
 
+func blake2_256(data []byte) string {
+	checksum, _ := blake2b.New(32, []byte{})
+	_, _ = checksum.Write(data)
+	h := checksum.Sum(nil)
+	return utiles.BytesToHex(h)
+}
+
 func (e *ExtrinsicDecoder) generateHash() string {
-	if !e.ContainsTransaction {
-		return ""
-	}
 	var extrinsicData []byte
-	if e.ExtrinsicLength > 0 {
+	if e.VersionInfo == "45" && !e.ContainsTransaction {
+		// for version 45, will add version info as a prefix and add extrinsic length
+		extrinsicLengthType := scaleType.CompactU32{}
+		extrinsicData = append([]byte{0x45}, e.Data.Data...) // add version info
+		extrinsicLengthType.Encode(len(extrinsicData))
+		extrinsicData = append(extrinsicLengthType.Data.Data[:], extrinsicData...)
+	} else if e.ExtrinsicLength > 0 {
 		extrinsicData = e.Data.Data
 	} else {
 		extrinsicLengthType := scaleType.CompactU32{}
 		extrinsicLengthType.Encode(len(e.Data.Data))
 		extrinsicData = append(extrinsicLengthType.Data.Data[:], e.Data.Data[:]...)
 	}
-	checksum, _ := blake2b.New(32, []byte{})
-	_, _ = checksum.Write(extrinsicData)
-	h := checksum.Sum(nil)
-	return utiles.BytesToHex(h)
+	return blake2_256(extrinsicData)
 }
 
 type GenericExtrinsic struct {
@@ -218,6 +225,7 @@ func (e *ExtrinsicDecoder) Process() {
 		e.CallIndex = utiles.BytesToHex(e.NextBytes(2))
 	} else if e.VersionInfo == "45" {
 		e.NextBytes(4)
+		e.ExtrinsicHash = e.generateHash()
 		e.CallIndex = utiles.BytesToHex(e.NextBytes(2))
 	} else {
 		panic(fmt.Sprintf("Extrinsics version %s is not support", e.VersionInfo))
@@ -242,8 +250,8 @@ func (e *ExtrinsicDecoder) Process() {
 		result.Signature = e.Signature
 		result.Nonce = e.Nonce
 		result.Era = e.Era
-		result.ExtrinsicHash = e.ExtrinsicHash
 	}
+	result.ExtrinsicHash = utiles.AddHex(e.ExtrinsicHash)
 	result.CallCode = e.CallIndex
 	result.CallModuleFunction = call.Call.Name
 	result.CallModule = call.Module.Name
