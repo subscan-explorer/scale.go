@@ -29,6 +29,9 @@ func IntInSlice(a int, list []int) bool {
 	return false
 }
 func AddHex(s string) string {
+	if s == "" {
+		return ""
+	}
 	if strings.HasPrefix(s, "0x") {
 		return s
 	}
