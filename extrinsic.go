@@ -72,7 +72,10 @@ func blake2_256(data []byte) string {
 func (e *ExtrinsicDecoder) generateHash() string {
 	var extrinsicData []byte
 	if e.VersionInfo == "45" && !e.ContainsTransaction {
+		// 69 denotes 0b0100_0101 which is the version and preamble for this Extrinsic
+		// General transactions: (extrinsic_encoded_len, 0b0100_0101, extension_version_byte, extensions, call)
 		// for version 45, will add version info as a prefix and add extrinsic length
+		// https://github.com/polkadot-fellows/RFCs/pull/124
 		extrinsicLengthType := scaleType.CompactU32{}
 		extrinsicData = append([]byte{0x45}, e.Data.Data...) // add version info
 		extrinsicLengthType.Encode(len(extrinsicData))
