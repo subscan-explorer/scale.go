@@ -2,6 +2,7 @@ package scalecodec_test
 
 import (
 	"fmt"
+	"github.com/itering/scale.go/static"
 	"os"
 	"testing"
 
@@ -79,4 +80,21 @@ func TestExtrinsicEncode(t *testing.T) {
 	genericExtrinsic := scalecodec.GenericExtrinsic{VersionInfo: "04", CallCode: "0200", Params: nil}
 	_, err := genericExtrinsic.Encode(&option)
 	assert.Error(t, err)
+}
+
+func Test_ExtrinsicV5(t *testing.T) {
+	m := scalecodec.MetadataDecoder{}
+	m.Init(utiles.HexToBytes(static.HexMetadata))
+	_ = m.Process()
+
+	t.Run("general extrinsic", func(t *testing.T) {
+		raw := "0xc44500650000000000060000d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d0700e40b5402"
+		e := scalecodec.ExtrinsicDecoder{}
+		e.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(raw)}, &types.ScaleDecoderOption{Metadata: &m.Metadata})
+		e.Process()
+		extrinsic := (e.Value.(*scalecodec.GenericExtrinsic))
+		assert.Equal(t, "transfer_allow_death", extrinsic.CallModuleFunction)
+		assert.Equal(t, "00d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d0700e40b5402", extrinsic.ParamsRaw)
+		assert.Equal(t, "45", extrinsic.VersionInfo)
+	})
 }
