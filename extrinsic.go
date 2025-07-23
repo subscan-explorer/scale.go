@@ -227,8 +227,16 @@ func (e *ExtrinsicDecoder) Process() {
 		}
 		e.CallIndex = utiles.BytesToHex(e.NextBytes(2))
 	} else if e.VersionInfo == "45" {
-		e.NextBytes(4)
 		e.ExtrinsicHash = e.generateHash()
+		result.TransactionExtensionVersion = e.ProcessAndUpdateData("U8").(int)
+		result.SignedExtensions = make(map[string]interface{})
+		for _, ext := range e.Metadata.Extrinsic.SignedExtensions {
+			extValue := e.ProcessAndUpdateData(ext.TypeString)
+			if v, ok := extValue.(map[string]interface{}); ok && len(v) == 0 {
+				continue
+			}
+			result.SignedExtensions[ext.Identifier] = extValue
+		}
 		e.CallIndex = utiles.BytesToHex(e.NextBytes(2))
 	} else {
 		panic(fmt.Sprintf("Extrinsics version %s is not support", e.VersionInfo))
