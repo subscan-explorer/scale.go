@@ -109,7 +109,7 @@ func (m *MetadataV14Decoder) Process() {
 			}
 
 			for _, variant := range variants.Variants {
-				moduleErr := MetadataModuleError{Name: variant.Name, Doc: variant.Docs}
+				moduleErr := MetadataModuleError{Name: variant.Name, Doc: variant.Docs, Index: variant.Index}
 				for _, field := range variant.Fields {
 					moduleErr.Fields = append(moduleErr.Fields, ModuleErrorField{Doc: field.Docs, TypeName: field.TypeName, Type: metadataSiType[field.Type]})
 				}
