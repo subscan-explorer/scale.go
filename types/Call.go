@@ -14,7 +14,10 @@ type Call struct {
 func (s *Call) Process() {
 	start := s.Data.Offset
 	callIndex := utiles.BytesToHex(s.NextBytes(2))
-	callModule := s.Metadata.CallIndex[callIndex]
+	callModule, ok := s.Metadata.CallIndex[callIndex]
+	if !ok {
+		panic(fmt.Sprintf("Not find Extrinsic Lookup %s, please check metadata info", callIndex))
+	}
 	result := map[string]interface{}{
 		"call_index":  callIndex,
 		"call_name":   callModule.Call.Name,
