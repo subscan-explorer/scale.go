@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/json"
-
 	"github.com/huandu/xstrings"
 	"github.com/itering/scale.go/types/convert"
 	"github.com/itering/scale.go/types/scaleBytes"
@@ -740,6 +739,7 @@ type MetadataModuleError struct {
 	Name         string             `json:"name"`
 	Doc          []string           `json:"doc"`
 	Fields       []ModuleErrorField `json:"fields,omitempty"`
+	Index        int                `json:"index,omitempty"`
 }
 
 type ModuleErrorField struct {
