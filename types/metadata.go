@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/json"
-
 	"github.com/huandu/xstrings"
 	"github.com/itering/scale.go/types/convert"
 	"github.com/itering/scale.go/types/scaleBytes"
@@ -740,7 +739,7 @@ type MetadataModuleError struct {
 	Name         string             `json:"name"`
 	Doc          []string           `json:"doc"`
 	Fields       []ModuleErrorField `json:"fields,omitempty"`
-	Index        int                `json:"index"`
+	Index        int                `json:"index,omitempty"`
 }
 
 type ModuleErrorField struct {
@@ -763,7 +762,6 @@ func (m *MetadataModuleError) Process() {
 	for _, v := range docs {
 		docsArr = append(docsArr, v.(string))
 	}
-	cm.Index = m.ProcessAndUpdateData("U8").(int)
 	cm.Doc = docsArr
 	m.Value = cm
 }

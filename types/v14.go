@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/itering/scale.go/types/scaleBytes"
 	"regexp"
 	"strings"
 
@@ -19,6 +20,19 @@ import (
 
 type MetadataV14Decoder struct {
 	ScaleDecoder
+	Errors []MetadataModuleErrorV14 `json:"errors"`
+}
+type MetadataModuleErrorV14 struct {
+	ScaleDecoder `json:"-"`
+	Index        int `json:"index"`
+}
+
+func (m *MetadataModuleErrorV14) Init(data scaleBytes.ScaleBytes, option *ScaleDecoderOption) {
+	m.ScaleDecoder.Init(data, option)
+}
+func (m *MetadataModuleErrorV14) Process() {
+	cm := MetadataModuleErrorV14{}
+	cm.Index = m.ProcessAndUpdateData("U8").(int)
 }
 
 type PalletLookUp struct {
@@ -109,7 +123,9 @@ func (m *MetadataV14Decoder) Process() {
 			}
 
 			for _, variant := range variants.Variants {
-				moduleErr := MetadataModuleError{Name: variant.Name, Doc: variant.Docs, Index: variant.Index}
+				moduleErr := MetadataModuleError{Name: variant.Name, Doc: variant.Docs}
+				moduleErrV14 := MetadataModuleErrorV14{Index: variant.Index}
+				moduleErr.Index = moduleErrV14.Index
 				for _, field := range variant.Fields {
 					moduleErr.Fields = append(moduleErr.Fields, ModuleErrorField{Doc: field.Docs, TypeName: field.TypeName, Type: metadataSiType[field.Type]})
 				}
