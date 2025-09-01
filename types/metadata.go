@@ -740,6 +740,7 @@ type MetadataModuleError struct {
 	Name         string             `json:"name"`
 	Doc          []string           `json:"doc"`
 	Fields       []ModuleErrorField `json:"fields,omitempty"`
+	Index        int                `json:"index"`
 }
 
 type ModuleErrorField struct {
