@@ -14,8 +14,9 @@ type MetadataCompareResult struct {
 }
 
 type ModuleChanges struct {
-	Calls  *ChangesList `json:"calls,omitempty"`
-	Events *ChangesList `json:"events,omitempty"`
+	Calls   *ChangesList `json:"calls,omitempty"`
+	Events  *ChangesList `json:"events,omitempty"`
+	Storage *ChangesList `json:"storage,omitempty"`
 }
 
 type ChangesList struct {
@@ -56,6 +57,15 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 		return nil
 	}
 
+	var getStorageByName = func(name string, storageItems []MetadataStorage) *MetadataStorage {
+		for _, item := range storageItems {
+			if item.Name == name {
+				return &item
+			}
+		}
+		return nil
+	}
+
 	var buildCallArgs = func(call MetadataCalls) string {
 		var args []string
 		for _, arg := range call.Args {
@@ -66,6 +76,10 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 
 	var buildEventArgs = func(event MetadataEvents) string {
 		return fmt.Sprintf("%s(%s)", event.Name, strings.Join(event.Args, ","))
+	}
+
+	var buildStorageArgs = func(moduleName string, storage MetadataStorage) string {
+		return fmt.Sprintf("%s.%s: %s", moduleName, storage.Name, storage.Type.TypeValue())
 	}
 
 	var result MetadataCompareResult
@@ -141,7 +155,30 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 		if Events.New != nil || Events.Changes != nil {
 			moduleChanges.Events = &Events
 		}
-		if (moduleChanges.Calls != nil && (len(moduleChanges.Calls.Changes) > 0 || len(moduleChanges.Calls.New) > 0)) || (moduleChanges.Events != nil && (len(moduleChanges.Events.Changes) > 0 || len(moduleChanges.Events.New) > 0)) {
+
+		// check storage
+		storage := ChangesList{}
+		for _, storageItem := range module.Storage {
+			destStorage := getStorageByName(storageItem.Name, destModule.Storage)
+			if destStorage == nil {
+				storage.New = append(storage.New, fmt.Sprintf("%s.%s", module.Name, storageItem.Name))
+				continue
+			}
+
+			if !Eq(storageItem.Type.TypeValue(), destStorage.Type.TypeValue()) {
+				storage.Changes = append(storage.Changes, CompareChanges{
+					Prev:    buildStorageArgs(module.Name, *destStorage),
+					Current: buildStorageArgs(module.Name, storageItem),
+				})
+			}
+		}
+		if storage.New != nil || storage.Changes != nil {
+			moduleChanges.Storage = &storage
+		}
+
+		if (moduleChanges.Calls != nil && (len(moduleChanges.Calls.Changes) > 0 || len(moduleChanges.Calls.New) > 0)) ||
+			(moduleChanges.Events != nil && (len(moduleChanges.Events.Changes) > 0 || len(moduleChanges.Events.New) > 0)) ||
+			(moduleChanges.Storage != nil && (len(moduleChanges.Storage.Changes) > 0 || len(moduleChanges.Storage.New) > 0)) {
 			result.ModuleChanges[module.Name] = moduleChanges
 		}
 

@@ -41,6 +41,22 @@ type StorageType struct {
 	NMapType       *NMapType `json:"n_map_type,omitempty"`
 }
 
+func (s *StorageType) TypeValue() string {
+	switch s.Origin {
+	case "MapType":
+		return s.MapType.Value
+	case "DoubleMapType":
+		return s.DoubleMapType.Value
+	case "Map":
+		return s.NMapType.Value
+	default:
+		if s.PlainType != nil {
+			return *s.PlainType
+		}
+		return ""
+	}
+}
+
 type MapType struct {
 	Key        string `json:"key"`
 	Key2       string `json:"key2,omitempty"`
