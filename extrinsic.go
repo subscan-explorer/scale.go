@@ -21,18 +21,18 @@ type ExtrinsicParam struct {
 
 type ExtrinsicDecoder struct {
 	scaleType.ScaleDecoder
-	ExtrinsicLength     int              `json:"extrinsic_length"`
-	ExtrinsicHash       string           `json:"extrinsic_hash"`
-	VersionInfo         string           `json:"version_info"`
-	ContainsTransaction bool             `json:"contains_transaction"`
-	Address             interface{}      `json:"address"`
-	Signature           string           `json:"signature"`
-	Nonce               int              `json:"nonce"`
-	Era                 string           `json:"era"`
-	CallIndex           string           `json:"call_index"`
-	Params              []ExtrinsicParam `json:"params"`
-	ParamsRaw           string           `json:"params_raw"`
-	Metadata            *scaleType.MetadataStruct
+	ExtrinsicLength     int                         `json:"extrinsic_length"`
+	ExtrinsicHash       string                      `json:"extrinsic_hash"`
+	VersionInfo         string                      `json:"version_info"`
+	ContainsTransaction bool                        `json:"contains_transaction"`
+	Address             interface{}                 `json:"address"`
+	Signature           string                      `json:"signature"`
+	Nonce               int                         `json:"nonce"`
+	Era                 string                      `json:"era"`
+	CallIndex           string                      `json:"call_index"`
+	Params              []ExtrinsicParam            `json:"params"`
+	ParamsRaw           string                      `json:"params_raw"`
+	Metadata            *scaleType.MetadataStruct   `json:"-"`
 	SignedExtensions    []scaleType.SignedExtension `json:"signed_extensions"`
 	AdditionalCheck     []string
 }
@@ -43,7 +43,7 @@ var signedExts = map[string]bool{
 	"CheckTxVersion":           false,
 	"CheckGenesis":             false,
 	"CheckMortality":           false,
-	"CheckNonce":               false,
+	"CheckNonce":               true,
 	"CheckWeight":              false,
 	"ChargeTransactionPayment": true,
 	"CheckBlockGasLimit":       false,
@@ -151,13 +151,15 @@ func (e *ExtrinsicDecoder) Process() {
 				}
 			}
 			e.Era = e.ProcessAndUpdateData("EraExtrinsic").(string)
-			e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
 			if e.Metadata.Extrinsic != nil {
 				if e.Metadata.MetadataVersion < 14 && utiles.SliceIndex("ChargeTransactionPayment", e.Metadata.Extrinsic.SignedIdentifier) != -1 {
 					result.Tip = utiles.DecimalFromInterface(e.ProcessAndUpdateData("Compact<Balance>"))
 				}
 			} else {
 				result.Tip = utiles.DecimalFromInterface(e.ProcessAndUpdateData("Compact<Balance>"))
+			}
+			if e.Metadata.MetadataVersion < 14 || utiles.SliceIndex("CheckNonce", e.Metadata.Extrinsic.SignedIdentifier) < 0 {
+				e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
 			}
 			// spec SignedExtensions
 			result.SignedExtensions = make(map[string]interface{})
@@ -175,6 +177,8 @@ func (e *ExtrinsicDecoder) Process() {
 						if enable := signedExts[ext.Identifier]; enable || utiles.SliceIndex(ext.Identifier, e.AdditionalCheck) >= 0 {
 							if ext.Identifier == "ChargeTransactionPayment" {
 								result.Tip = utiles.DecimalFromInterface(e.ProcessAndUpdateData("Compact<Balance>"))
+							} else if ext.Identifier == "CheckNonce" {
+								e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
 							} else {
 								result.SignedExtensions[ext.Identifier] = e.ProcessAndUpdateData(ext.TypeString)
 							}
@@ -218,6 +222,8 @@ func (e *ExtrinsicDecoder) Process() {
 				if enable := signedExts[ext.Identifier]; enable || utiles.SliceIndex(ext.Identifier, e.AdditionalCheck) >= 0 {
 					if ext.Identifier == "ChargeTransactionPayment" {
 						result.Tip = utiles.DecimalFromInterface(e.ProcessAndUpdateData("Compact<Balance>"))
+					} else if ext.Identifier == "CheckNonce" {
+						e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
 					} else {
 						result.SignedExtensions[ext.Identifier] = e.ProcessAndUpdateData(ext.TypeString)
 					}
