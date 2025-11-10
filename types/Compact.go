@@ -120,7 +120,6 @@ func Reverse(b []byte) {
 
 type CompactU32 struct {
 	Compact
-	Reader io.Reader
 }
 
 func (c *CompactU32) Init(data scaleBytes.ScaleBytes, option *ScaleDecoderOption) {
@@ -131,10 +130,11 @@ func (c *CompactU32) Init(data scaleBytes.ScaleBytes, option *ScaleDecoderOption
 func (c *CompactU32) Process() {
 	c.ProcessCompactBytes()
 	buf := &bytes.Buffer{}
-	c.Reader = buf
+	var reader io.Reader
+	reader = buf
 	_, _ = buf.Write(c.CompactBytes)
 	b := make([]byte, 8)
-	_, _ = c.Reader.Read(b)
+	_, _ = reader.Read(b)
 	c.Value = int(binary.LittleEndian.Uint64(b))
 	if c.CompactLength <= 4 {
 		c.Value = int(c.Value.(int)) / 4

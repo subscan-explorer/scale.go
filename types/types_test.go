@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/itering/scale.go/source"
@@ -379,4 +380,21 @@ func TestXcmV2ResultType(t *testing.T) {
 	m := ScaleDecoder{}
 	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(raw)}, nil)
 	assert.Equal(t, `{"V2":[{"QueryResponse":{"max_weight":0,"query_id":69,"response":{"ExecutionResult":{"Ok":3707368002}}}}]}`, utiles.ToString(m.ProcessAndUpdateData("VersionedXcm").(map[string]interface{})))
+}
+
+func Test_ConcurrencyDecode(t *testing.T) {
+	wg := sync.WaitGroup{}
+	goRoutines := 1000
+	for i := 0; i < goRoutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			m := ScaleDecoder{}
+			m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("0x2d63bf0800000000")}, nil)
+			if r := m.ProcessAndUpdateData("RawAuraPreDigest").(map[string]interface{}); r["slotNumber"] != uint64(146760493) {
+				t.Errorf("Test Test_ConcurrencyDecode Process fail, decode return %v", r)
+			}
+		}()
+	}
+	wg.Wait()
 }

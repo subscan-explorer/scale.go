@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math/big"
 
 	"github.com/itering/scale.go/types/scaleBytes"
@@ -15,7 +14,6 @@ import (
 type IntFixed struct {
 	ScaleDecoder
 	FixedLength int
-	Reader      io.Reader
 }
 
 func (f *IntFixed) Init(data scaleBytes.ScaleBytes, option *ScaleDecoderOption) {

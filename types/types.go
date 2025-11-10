@@ -193,15 +193,15 @@ func (s *AccountId) TypeStructString() string {
 
 type Balance struct {
 	U128
-	Reader io.Reader
 }
 
 func (b *Balance) Process() {
 	buf := &bytes.Buffer{}
-	b.Reader = buf
+	var reader io.Reader
+	reader = buf
 	_, _ = buf.Write(b.NextBytes(16))
 	c := make([]byte, 16)
-	_, _ = b.Reader.Read(c)
+	_, _ = reader.Read(c)
 	if utiles.BytesToHex(c) == "ffffffffffffffffffffffffffffffff" {
 		b.Value = decimal.NewFromInt32(-1)
 		return

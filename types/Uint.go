@@ -49,16 +49,16 @@ func (u *U8) TypeStructString() string {
 }
 
 type U16 struct {
-	Reader io.Reader
 	ScaleDecoder
 }
 
 func (u *U16) Process() {
 	buf := &bytes.Buffer{}
-	u.Reader = buf
+	var reader io.Reader
+	reader = buf
 	_, _ = buf.Write(u.NextBytes(2))
 	c := make([]byte, 2)
-	_, _ = u.Reader.Read(c)
+	_, _ = reader.Read(c)
 	u.Value = binary.LittleEndian.Uint16(c)
 }
 
@@ -88,16 +88,16 @@ func (u *U16) TypeStructString() string {
 }
 
 type U32 struct {
-	Reader io.Reader
 	ScaleDecoder
 }
 
 func (u *U32) Process() {
 	buf := &bytes.Buffer{}
-	u.Reader = buf
+	var reader io.Reader
+	reader = buf
 	_, _ = buf.Write(u.NextBytes(4))
 	c := make([]byte, 4)
-	_, _ = u.Reader.Read(c)
+	_, _ = reader.Read(c)
 	u.Value = binary.LittleEndian.Uint32(c)
 }
 
