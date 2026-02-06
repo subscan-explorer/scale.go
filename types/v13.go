@@ -97,7 +97,12 @@ func registerOriginCaller(originCallers []OriginCaller) {
 			e.TypeMapping.Types = append(e.TypeMapping.Types, "NULL")
 		}
 	}
-	regCustomKey(strings.ToLower("OriginCaller"), &e)
+	typeMapping := e.TypeMapping
+	regCustomKey(strings.ToLower("OriginCaller"), func() Decoder {
+		origin := Enum{}
+		origin.TypeMapping = typeMapping
+		return &origin
+	})
 }
 
 type MetadataV13Module struct {

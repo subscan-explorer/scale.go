@@ -1,12 +1,10 @@
 package types
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math/big"
-	"reflect"
 	"strings"
 
 	"github.com/huandu/xstrings"
@@ -53,13 +51,10 @@ type U16 struct {
 }
 
 func (u *U16) Process() {
-	buf := &bytes.Buffer{}
-	var reader io.Reader
-	reader = buf
-	_, _ = buf.Write(u.NextBytes(2))
-	c := make([]byte, 2)
-	_, _ = reader.Read(c)
-	u.Value = binary.LittleEndian.Uint16(c)
+	data := u.NextBytes(2)
+	var c [2]byte
+	copy(c[:], data)
+	u.Value = binary.LittleEndian.Uint16(c[:])
 }
 
 func (u *U16) Encode(value interface{}) string {
@@ -78,9 +73,9 @@ func (u *U16) Encode(value interface{}) string {
 	case float64:
 		u16 = uint16(v)
 	}
-	bs := make([]byte, 2)
-	binary.LittleEndian.PutUint16(bs, u16)
-	return utiles.BytesToHex(bs)
+	var bs [2]byte
+	binary.LittleEndian.PutUint16(bs[:], u16)
+	return utiles.BytesToHex(bs[:])
 }
 
 func (u *U16) TypeStructString() string {
@@ -92,13 +87,10 @@ type U32 struct {
 }
 
 func (u *U32) Process() {
-	buf := &bytes.Buffer{}
-	var reader io.Reader
-	reader = buf
-	_, _ = buf.Write(u.NextBytes(4))
-	c := make([]byte, 4)
-	_, _ = reader.Read(c)
-	u.Value = binary.LittleEndian.Uint32(c)
+	data := u.NextBytes(4)
+	var c [4]byte
+	copy(c[:], data)
+	u.Value = binary.LittleEndian.Uint32(c[:])
 }
 
 func (u *U32) Encode(value interface{}) string {
@@ -113,9 +105,9 @@ func (u *U32) Encode(value interface{}) string {
 	case float64:
 		u32 = uint32(v)
 	}
-	bs := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bs, u32)
-	return utiles.BytesToHex(bs)
+	var bs [4]byte
+	binary.LittleEndian.PutUint32(bs[:], u32)
+	return utiles.BytesToHex(bs[:])
 }
 
 func (u *U32) TypeStructString() string {
@@ -128,12 +120,10 @@ type U64 struct {
 }
 
 func (u *U64) Process() {
-	buf := &bytes.Buffer{}
-	u.Reader = buf
-	_, _ = buf.Write(u.NextBytes(8))
-	c := make([]byte, 8)
-	_, _ = u.Reader.Read(c)
-	u.Value = binary.LittleEndian.Uint64(c)
+	data := u.NextBytes(8)
+	var c [8]byte
+	copy(c[:], data)
+	u.Value = binary.LittleEndian.Uint64(c[:])
 }
 
 func (u *U64) Encode(value interface{}) string {
@@ -150,9 +140,9 @@ func (u *U64) Encode(value interface{}) string {
 	case float64:
 		u64 = uint64(v)
 	}
-	bs := make([]byte, 8)
-	binary.LittleEndian.PutUint64(bs, u64)
-	return utiles.BytesToHex(bs)
+	var bs [8]byte
+	binary.LittleEndian.PutUint64(bs[:], u64)
+	return utiles.BytesToHex(bs[:])
 }
 
 func (u *U64) TypeStructString() string {
@@ -208,33 +198,38 @@ func (u *U256) Process() {
 
 func (u *U256) Encode(value interface{}) string {
 	var raw string
-	if reflect.TypeOf(value).Kind() == reflect.String && value.(string) == "" {
+	switch v := value.(type) {
+	case nil:
 		return ""
-	}
-	switch reflect.TypeOf(value).String() {
-	case reflect.Slice.String():
-		s := reflect.ValueOf(value)
-		if s.Len() != 32 {
-			panic("fixed length not match")
+	case string:
+		if v == "" {
+			return ""
 		}
-		for i := 0; i < s.Len(); i++ {
-			raw += EncodeWithOpt("U8", s.Index(i).Interface(), nil)
-		}
-		return raw
-	case reflect.String.String():
-		valueStr := value.(string)
-		if strings.HasPrefix(valueStr, "0x") {
-			return utiles.TrimHex(valueStr)
+		if strings.HasPrefix(v, "0x") {
+			return utiles.TrimHex(v)
 		} else {
-			return utiles.BytesToHex([]byte(valueStr))
+			return utiles.BytesToHex([]byte(v))
 		}
-	case "decimal.Decimal":
-		value = value.(decimal.Decimal).BigInt()
-		fallthrough
-	case "*big.Int":
-		bigVal := fmt.Sprintf("%064s", value.(*big.Int).Text(16))
+	case decimal.Decimal:
+		bigVal := fmt.Sprintf("%064s", v.BigInt().Text(16))
+		return utiles.BytesToHex(utiles.ReverseBytes(utiles.HexToBytes(bigVal)))
+	case *big.Int:
+		if v == nil {
+			return ""
+		}
+		bigVal := fmt.Sprintf("%064s", v.Text(16))
 		return utiles.BytesToHex(utiles.ReverseBytes(utiles.HexToBytes(bigVal)))
 	default:
-		panic(fmt.Errorf("invalid vec input"))
+		values, ok := asInterfaceSlice(value)
+		if !ok {
+			panic(fmt.Errorf("invalid vec input"))
+		}
+		if len(values) != 32 {
+			panic("fixed length not match")
+		}
+		for _, item := range values {
+			raw += EncodeWithOpt("U8", item, nil)
+		}
+		return raw
 	}
 }

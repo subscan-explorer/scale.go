@@ -1,9 +1,10 @@
+//go:generate go run ../tools/gen_registry
+
 package types
 
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -18,14 +19,23 @@ type RuntimeType struct {
 	Module string
 }
 
+type CodecFactory func() Decoder
+
+type codecCacheEntry struct {
+	factory CodecFactory
+	subType string
+}
+
 type Special struct {
 	Version  []int
-	Registry interface{}
+	Registry CodecFactory
 }
 
 var (
-	TypeRegistry        map[string]interface{}
+	TypeRegistry        map[string]CodecFactory
 	TypeRegistryLock    = &sync.RWMutex{}
+	codecCache          = make(map[string]codecCacheEntry)
+	codecCacheLock      = &sync.RWMutex{}
 	specialRegistry     = make(map[string][]Special)
 	specialRegistryLock = &sync.RWMutex{}
 	V14Types            = make(map[string]source.TypeStruct)
@@ -52,233 +62,159 @@ func init() {
 }
 
 func regBaseType() {
-	registry := make(map[string]interface{})
-	scales := []interface{}{
-		&Null{},
-		&U8{},
-		&U16{},
-		&U32{},
-		&U64{},
-		&U256{},
-		&Float64{},
-		&Float32{},
-		&U128{},
-		&H160{},
-		&H256{},
-		&H512{},
-		&Address{},
-		&Option{},
-		&Struct{},
-		&Enum{},
-		&Bytes{},
-		&Vec{},
-		&BoundedVec{},
-		&WeakBoundedVec{},
-		&Set{},
-		&Compact{},
-		&CompactU32{},
-		&Bool{},
-		&HexBytes{},
-		&Moment{},
-		&BlockNumber{},
-		&AccountId{},
-		&BoxProposal{},
-		&Signature{},
-		&Era{},
-		&EraExtrinsic{},
-		&Balance{},
-		&LogDigest{},
-		&Other{},
-		&ChangesTrieRoot{},
-		&AuthoritiesChange{},
-		&SealV0{},
-		&Consensus{},
-		&Seal{},
-		&PreRuntime{},
-		&Exposure{},
-		&RawAuraPreDigest{},
-		&RawBabePreDigestPrimary{},
-		&RawBabePreDigestSecondary{},
-		&RawBabePreDigestSecondaryVRF{},
-		&SlotNumber{},
-		&LockIdentifier{},
-		&Call{},
-		&EcdsaSignature{},
-		&EthereumAddress{},
-		&Data{},
-		&VoteOutcome{},
-		&String{},
-		&GenericAddress{},
-		&OpaqueCall{},
-		&BitVec{},
-		&MetadataModuleEvent{},
-		&MetadataModuleCallArgument{},
-		&MetadataModuleCall{},
-		&MetadataV13ModuleStorage{},
-		&MetadataV7ModuleConstants{},
-		&MetadataV7ModuleStorageEntry{},
-		&MetadataV13ModuleStorageEntry{},
-		&MetadataV8Module{},
-		&MetadataV7ModuleStorage{},
-		&MetadataV9Decoder{},
-		&MetadataV10Decoder{},
-		&MetadataV11Decoder{},
-		&MetadataV12Decoder{},
-		&MetadataV13Decoder{},
-		&MetadataV14Decoder{},
-		&MetadataV15Decoder{},
-		&MetadataV12Module{},
-		&MetadataV13Module{},
-		&MetadataV14Module{},
-		&MetadataV15Module{},
-		&RuntimeApiMetadataV15{},
-		&RuntimeApiMethodMetadataV15{},
-		&RuntimeApiMethodParamMetadataV15{},
-		&MetadataV14ModuleStorage{},
-		&MetadataV14ModuleStorageEntry{},
-		&PalletConstantMetadataV14{},
-		&MetadataModuleError{},
-		&GenericLookupSource{},
-		&BTreeMap{},
-		&BTreeSet{},
-		&Box{},
-		&Result{},
-		&RuntimeEnvironmentUpdated{},
-		&WrapperOpaque{},
-		&Range{},
-		&RangeInclusive{},
-		&SubstrateFixedU64{},
-		&SubstrateFixedI128{},
-		&Empty{},
-		&OuterEnumsMetadataV15{},
-		&CustomMetadataV15{},
+	registry := make(map[string]CodecFactory, len(baseCodecFactories)+24)
+	for key, factory := range baseCodecFactories {
+		registry[key] = factory
 	}
-	for _, class := range scales {
-		valueOf := reflect.ValueOf(class)
-		if valueOf.Type().Kind() == reflect.Ptr {
-			registry[strings.ToLower(reflect.Indirect(valueOf).Type().Name())] = class
-		} else {
-			registry[strings.ToLower(valueOf.Type().Name())] = class
-		}
-	}
-	registry["compact<u32>"] = &CompactU32{}
-	registry["compact<moment>"] = &CompactMoment{}
-	registry["str"] = &String{}
-	registry["hash"] = &H256{}
-	registry["blockhash"] = &H256{}
-	registry["i8"] = &IntFixed{FixedLength: 1}
-	registry["i16"] = &IntFixed{FixedLength: 2}
-	registry["i32"] = &IntFixed{FixedLength: 4}
-	registry["i64"] = &IntFixed{FixedLength: 8}
-	registry["i128"] = &IntFixed{FixedLength: 16}
-	registry["i256"] = &IntFixed{FixedLength: 32}
-	registry["h128"] = &FixedU8{FixedLength: 16}
-	registry["[u8; 32]"] = &FixedU8{FixedLength: 32}
-	registry["[u8; 64]"] = &FixedU8{FixedLength: 64}
-	registry["[u8; 65]"] = &FixedU8{FixedLength: 65}
-	registry["[u8; 16]"] = &FixedU8{FixedLength: 16}
-	registry["[u8; 20]"] = &FixedU8{FixedLength: 20}
-	registry["[u8; 8]"] = &FixedU8{FixedLength: 8}
-	registry["[u8; 4]"] = &FixedU8{FixedLength: 4}
-	registry["[u8; 2]"] = &FixedU8{FixedLength: 2}
-	registry["[u8; 256]"] = &FixedU8{FixedLength: 256}
-	registry["[u128; 3]"] = &FixedArray{FixedLength: 3, SubType: "u128"}
+	registry["compact<u32>"] = registry["compactu32"]
+	registry["compact<moment>"] = func() Decoder { return &CompactMoment{} }
+	registry["str"] = registry["string"]
+	registry["hash"] = registry["h256"]
+	registry["blockhash"] = registry["h256"]
+	registry["i8"] = func() Decoder { return &IntFixed{FixedLength: 1} }
+	registry["i16"] = func() Decoder { return &IntFixed{FixedLength: 2} }
+	registry["i32"] = func() Decoder { return &IntFixed{FixedLength: 4} }
+	registry["i64"] = func() Decoder { return &IntFixed{FixedLength: 8} }
+	registry["i128"] = func() Decoder { return &IntFixed{FixedLength: 16} }
+	registry["i256"] = func() Decoder { return &IntFixed{FixedLength: 32} }
+	registry["h128"] = func() Decoder { return &FixedU8{FixedLength: 16} }
+	registry["[u8; 32]"] = func() Decoder { return &FixedU8{FixedLength: 32} }
+	registry["[u8; 64]"] = func() Decoder { return &FixedU8{FixedLength: 64} }
+	registry["[u8; 65]"] = func() Decoder { return &FixedU8{FixedLength: 65} }
+	registry["[u8; 16]"] = func() Decoder { return &FixedU8{FixedLength: 16} }
+	registry["[u8; 20]"] = func() Decoder { return &FixedU8{FixedLength: 20} }
+	registry["[u8; 8]"] = func() Decoder { return &FixedU8{FixedLength: 8} }
+	registry["[u8; 4]"] = func() Decoder { return &FixedU8{FixedLength: 4} }
+	registry["[u8; 2]"] = func() Decoder { return &FixedU8{FixedLength: 2} }
+	registry["[u8; 256]"] = func() Decoder { return &FixedU8{FixedLength: 256} }
+	registry["[u128; 3]"] = func() Decoder { return &FixedArray{FixedLength: 3, SubType: "u128"} }
 	TypeRegistryLock.Lock()
 	TypeRegistry = registry
 	TypeRegistryLock.Unlock()
+	resetCodecCache()
 	// todo change load source pallet type to lazy load
 	RegCustomTypes(source.LoadTypeRegistry([]byte(source.BaseType)))
 }
 
-func (r *RuntimeType) getCodecInstant(t string, spec int) (reflect.Type, reflect.Value, error) {
+func resetCodecCache() {
+	codecCacheLock.Lock()
+	codecCache = make(map[string]codecCacheEntry)
+	codecCacheLock.Unlock()
+}
+
+func (r *RuntimeType) getCodecInstant(t string, spec int) (Decoder, CodecFactory, error) {
 	t = override.ModuleType(strings.ToLower(t), r.Module)
-	rt, err := r.specialVersionCodec(t, spec)
+	factory, err := r.specialVersionCodec(t, spec)
 
 	if err != nil {
 		TypeRegistryLock.RLock()
-		rt = TypeRegistry[strings.ToLower(t)]
+		factory = TypeRegistry[strings.ToLower(t)]
 		TypeRegistryLock.RUnlock()
 		// fixed array
-		if rt == nil && t != "[]" && string(t[0]) == "[" && t[len(t)-1:] == "]" {
+		if factory == nil && t != "[]" && string(t[0]) == "[" && t[len(t)-1:] == "]" {
 			if typePart := strings.Split(t[1:len(t)-1], ";"); len(typePart) >= 2 {
 				remainPart := typePart[0 : len(typePart)-1]
 				fixed := FixedArray{
 					FixedLength: utiles.StringToInt(strings.TrimSpace(typePart[len(typePart)-1])),
 					SubType:     strings.TrimSpace(strings.Join(remainPart, ";")),
 				}
-				rt = &fixed
+				factory = func() Decoder { return &fixed }
 			}
 		}
-		if rt == nil {
-			return nil, reflect.ValueOf((*error)(nil)).Elem(), errors.New("Scale codec type nil" + t)
+		if factory == nil {
+			return nil, nil, errors.New("Scale codec type nil" + t)
 		}
 	}
 
-	value := reflect.ValueOf(rt)
-	if value.Kind() == reflect.Ptr {
-		value = reflect.Indirect(value)
-	}
-	p := reflect.New(value.Type())
-	p.Elem().Set(value)
-	return p.Type(), p, nil
+	return factory(), factory, nil
 }
 
-func (r *RuntimeType) GetCodecClass(typeString string, spec int) (reflect.Type, reflect.Value, string) {
+func (r *RuntimeType) GetCodec(typeString string, spec int) (Decoder, string, error) {
 	var typeParts []string
 	typeString = convert.ConvertType(typeString)
+	cacheKey := fmt.Sprintf("%s|%d|%s", r.Module, spec, typeString)
+	codecCacheLock.RLock()
+	entry, ok := codecCache[cacheKey]
+	codecCacheLock.RUnlock()
+	if ok {
+		return entry.factory(), entry.subType, nil
+	}
 
 	// complex
 	if typeString[len(typeString)-1:] == ">" {
-		decoderClass, rc, err := r.getCodecInstant(typeString, spec)
+		decoder, factory, err := r.getCodecInstant(typeString, spec)
 		if err == nil {
-			return decoderClass, rc, ""
+			codecCacheLock.Lock()
+			codecCache[cacheKey] = codecCacheEntry{factory: factory, subType: ""}
+			codecCacheLock.Unlock()
+			return decoder, "", nil
 		}
 		reg := regexp.MustCompile("^([^<]*)<(.+)>$")
 		typeParts = reg.FindStringSubmatch(typeString)
 	}
 
 	if len(typeParts) > 0 {
-		class, rc, err := r.getCodecInstant(typeParts[1], spec)
+		decoder, factory, err := r.getCodecInstant(typeParts[1], spec)
 		if err == nil {
-			return class, rc, typeParts[2]
+			codecCacheLock.Lock()
+			codecCache[cacheKey] = codecCacheEntry{factory: factory, subType: typeParts[2]}
+			codecCacheLock.Unlock()
+			return decoder, typeParts[2], nil
 		}
 	} else {
-		class, rc, err := r.getCodecInstant(typeString, spec)
+		decoder, factory, err := r.getCodecInstant(typeString, spec)
 		if err == nil {
-			return class, rc, ""
+			codecCacheLock.Lock()
+			codecCache[cacheKey] = codecCacheEntry{factory: factory, subType: ""}
+			codecCacheLock.Unlock()
+			return decoder, "", nil
 		}
 	}
 
 	// Tuple
 	if typeString != "()" && string(typeString[0]) == "(" && typeString[len(typeString)-1:] == ")" {
-		decoderClass, rc, _ := r.getCodecInstant("Struct", spec)
-		s := rc.Interface().(*Struct)
+		decoder, _, err := r.getCodecInstant("Struct", spec)
+		if err != nil {
+			return nil, "", err
+		}
+		s, ok := decoder.(*Struct)
+		if !ok {
+			return nil, "", fmt.Errorf("invalid struct decoder for %s", typeString)
+		}
 		s.TypeString = typeString
 		s.buildStruct()
-		return decoderClass, rc, ""
+		codecCacheLock.Lock()
+		codecCache[cacheKey] = codecCacheEntry{factory: func() Decoder {
+			clone := Struct{}
+			clone.TypeString = typeString
+			clone.buildStruct()
+			return &clone
+		}, subType: ""}
+		codecCacheLock.Unlock()
+		return s, "", nil
 	}
 
 	// namespace
 	if strings.Contains(typeString, "::") && typeString != "::" {
 		namespaceSlice := strings.Split(typeString, "::")
-		return r.GetCodecClass(namespaceSlice[len(namespaceSlice)-1], spec)
+		return r.GetCodec(namespaceSlice[len(namespaceSlice)-1], spec)
 	}
 
-	return nil, reflect.ValueOf((*error)(nil)).Elem(), ""
+	return nil, "", fmt.Errorf("scale codec type nil %s", typeString)
 }
 
-func (r *RuntimeType) specialVersionCodec(t string, spec int) (interface{}, error) {
-	var rt interface{}
+func (r *RuntimeType) specialVersionCodec(t string, spec int) (CodecFactory, error) {
+	var factory CodecFactory
 	specialRegistryLock.RLock()
 	specials, ok := specialRegistry[t]
 	specialRegistryLock.RUnlock()
 	if ok {
 		for _, special := range specials {
 			if spec >= special.Version[0] && spec <= special.Version[1] {
-				rt = special.Registry
-				return rt, nil
+				factory = special.Registry
+				return factory, nil
 			}
 		}
 	}
-	return rt, fmt.Errorf("not found")
+	return factory, fmt.Errorf("not found")
 }

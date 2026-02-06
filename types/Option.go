@@ -25,8 +25,26 @@ func (o *Option) Encode(value interface{}) string {
 	if v, ok := value.(string); ok && v == "" {
 		return "00"
 	}
-	if utiles.IsNil(value) {
+	if value == nil {
 		return "00"
+	}
+	switch v := value.(type) {
+	case []byte:
+		if v == nil {
+			return "00"
+		}
+	case []interface{}:
+		if v == nil {
+			return "00"
+		}
+	case map[string]interface{}:
+		if v == nil {
+			return "00"
+		}
+	case error:
+		if v == nil {
+			return "00"
+		}
 	}
 	if o.SubType == "bool" {
 		if value.(bool) {

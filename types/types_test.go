@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"math/big"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -146,9 +145,7 @@ func TestReferendumInfo(t *testing.T) {
 			"proposalHash": "0x295ce46278975a53b855188482af699f7726fbbeac89cf16a1741c4698dcdbc9",
 			"tally":        map[string]interface{}{"ayes": "0", "nays": "0", "turnout": "0"}, "threshold": "SuperMajorityApprove",
 		}}
-	if !reflect.DeepEqual(utiles.ToString(c), utiles.ToString(r)) {
-		t.Errorf("Test TestReferendumInfo Process fail, decode return %v", r.(map[string]interface{}))
-	}
+	assert.Equal(t, utiles.ToString(c), utiles.ToString(r))
 }
 
 func TestEthereumAccountId(t *testing.T) {
@@ -365,12 +362,18 @@ func TestFixedArray(t *testing.T) {
 	}
 }
 
+func TestVecEncodeSliceTypes(t *testing.T) {
+	assert.Equal(t, "080100000002000000", Encode("Vec<u32>", []uint32{1, 2}))
+	assert.Equal(t, "080100000002000000", Encode("Vec<u32>", []int{1, 2}))
+}
+
 func TestU256(t *testing.T) {
 	raw := "0x1001000000000000000000000000000000000000000000000000000000000000"
 	m := ScaleDecoder{}
 	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(raw)}, nil)
 	assert.Equal(t, raw, utiles.AddHex(Encode("U256", m.ProcessAndUpdateData("U256").(decimal.Decimal))))
 	assert.Equal(t, raw, utiles.AddHex(Encode("U256", "0x1001000000000000000000000000000000000000000000000000000000000000")))
+	assert.Equal(t, raw, utiles.AddHex(Encode("U256", utiles.HexToBytes(raw))))
 	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("0x00b5070000000000000000000000000000000000000000000000000000000000")}, nil)
 	assert.Equal(t, int64(505088), m.ProcessAndUpdateData("U256").(decimal.Decimal).IntPart())
 }
