@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/itering/scale.go/types/scaleBytes"
@@ -49,31 +48,29 @@ func (f *FixedArray) TypeStructString() string {
 
 func (f *FixedArray) Encode(value interface{}) string {
 	var raw string
-	if reflect.TypeOf(value).Kind() == reflect.String && value.(string) == "" {
-		return ""
-	}
-	switch reflect.TypeOf(value).Kind() {
-	case reflect.Slice:
-		s := reflect.ValueOf(value)
-		if s.Len() != f.FixedLength {
-			panic("fixed length not match")
+	if valueStr, ok := value.(string); ok {
+		if valueStr == "" {
+			return ""
 		}
-		subType := f.SubType
-		for i := 0; i < s.Len(); i++ {
-			raw += EncodeWithOpt(subType, s.Index(i).Interface(), &ScaleDecoderOption{Spec: f.Spec, Metadata: f.Metadata})
-		}
-		return raw
-	case reflect.String:
-		valueStr := value.(string)
 		if strings.HasPrefix(valueStr, "0x") {
 			return utiles.TrimHex(valueStr)
 		} else {
 			return utiles.BytesToHex([]byte(valueStr))
 		}
-	default:
-		if f.FixedLength == 1 {
-			return EncodeWithOpt(f.SubType, value, &ScaleDecoderOption{Spec: f.Spec, Metadata: f.Metadata})
-		}
-		panic(fmt.Errorf("invalid vec input"))
 	}
+	values, ok := asInterfaceSlice(value)
+	if ok {
+		if len(values) != f.FixedLength {
+			panic("fixed length not match")
+		}
+		subType := f.SubType
+		for _, item := range values {
+			raw += EncodeWithOpt(subType, item, &ScaleDecoderOption{Spec: f.Spec, Metadata: f.Metadata})
+		}
+		return raw
+	}
+	if f.FixedLength == 1 {
+		return EncodeWithOpt(f.SubType, value, &ScaleDecoderOption{Spec: f.Spec, Metadata: f.Metadata})
+	}
+	panic(fmt.Errorf("invalid fixed array input: expected fixed length %d with subtype %q, got value of type %T", f.FixedLength, f.SubType, value))
 }

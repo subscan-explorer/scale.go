@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/itering/scale.go/types/scaleBytes"
@@ -37,20 +36,24 @@ func (v *Vec) Process() {
 
 func (v *Vec) Encode(value interface{}) string {
 	var raw string
-	if reflect.TypeOf(value).Kind() == reflect.String && value.(string) == "" {
-		return Encode("Compact<u32>", 0)
-	}
-	switch reflect.TypeOf(value).Kind() {
-	case reflect.Slice:
-		s := reflect.ValueOf(value)
-		raw += Encode("Compact<u32>", s.Len())
-		for i := 0; i < s.Len(); i++ {
-			raw += utiles.TrimHex(EncodeWithOpt(v.SubType, s.Index(i).Interface(), &ScaleDecoderOption{Spec: v.Spec, Metadata: v.Metadata}))
+	if v, ok := value.(string); ok {
+		if v == "" {
+			return Encode("Compact<u32>", 0)
 		}
-		return raw
-	default:
 		panic(fmt.Errorf("invalid vec input"))
 	}
+	if value == nil {
+		return Encode("Compact<u32>", 0)
+	}
+	values, ok := asInterfaceSlice(value)
+	if !ok {
+		panic(fmt.Errorf("invalid vec input"))
+	}
+	raw += Encode("Compact<u32>", len(values))
+	for _, item := range values {
+		raw += utiles.TrimHex(EncodeWithOpt(v.SubType, item, &ScaleDecoderOption{Spec: v.Spec, Metadata: v.Metadata}))
+	}
+	return raw
 }
 
 func (v *Vec) TypeStructString() string {

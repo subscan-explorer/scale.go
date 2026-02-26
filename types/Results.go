@@ -26,15 +26,19 @@ func (b *Result) Process() {
 	}
 }
 
-func (b *Result) Encode(value map[string]interface{}) string {
+func (b *Result) Encode(value interface{}) string {
+	typed, ok := value.(map[string]interface{})
+	if !ok {
+		panic("invalid Result input")
+	}
 	subType := strings.Split(b.SubType, ",")
 	if len(subType) != 2 {
 		panic("Result subType not illegal")
 	}
-	if data, ok := value["Ok"]; ok {
+	if data, ok := typed["Ok"]; ok {
 		return "00" + EncodeWithOpt(subType[0], data, &ScaleDecoderOption{Spec: b.Spec, Metadata: b.Metadata})
 	}
-	if data, ok := value["Error"]; ok {
+	if data, ok := typed["Error"]; ok {
 		return "01" + EncodeWithOpt(subType[1], data, &ScaleDecoderOption{Spec: b.Spec, Metadata: b.Metadata})
 	}
 	panic("illegal Result data")

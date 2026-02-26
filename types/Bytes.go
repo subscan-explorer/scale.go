@@ -17,18 +17,22 @@ func (b *Bytes) Process() {
 	}
 }
 
-func (b *Bytes) Encode(value string) string {
+func (b *Bytes) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid bytes input")
+	}
 	var bytes []byte
-	if strings.HasPrefix(value, "0x") {
-		value = utiles.TrimHex(value)
-		if len(value)%2 == 1 {
-			value += "0"
+	if strings.HasPrefix(valueStr, "0x") {
+		valueStr = utiles.TrimHex(valueStr)
+		if len(valueStr)%2 == 1 {
+			valueStr += "0"
 		}
 	} else {
-		value = utiles.BytesToHex([]byte(value))
+		valueStr = utiles.BytesToHex([]byte(valueStr))
 	}
-	bytes = utiles.HexToBytes(value)
-	return Encode("Compact<u32>", len(bytes)) + value
+	bytes = utiles.HexToBytes(valueStr)
+	return Encode("Compact<u32>", len(bytes)) + valueStr
 }
 
 func (b *Bytes) TypeStructString() string {
@@ -41,13 +45,17 @@ func (h *HexBytes) Process() {
 	h.Value = utiles.AddHex(utiles.BytesToHex(h.NextBytes(h.ProcessAndUpdateData("Compact<u32>").(int))))
 }
 
-func (h *HexBytes) Encode(value string) string {
-	value = utiles.TrimHex(value)
-	if len(value)%2 == 1 {
-		value += "0"
+func (h *HexBytes) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid hexbytes input")
 	}
-	bytes := utiles.HexToBytes(value)
-	return Encode("Compact<u32>", len(bytes)) + value
+	valueStr = utiles.TrimHex(valueStr)
+	if len(valueStr)%2 == 1 {
+		valueStr += "0"
+	}
+	bytes := utiles.HexToBytes(valueStr)
+	return Encode("Compact<u32>", len(bytes)) + valueStr
 }
 
 func (h *HexBytes) TypeStructString() string {
@@ -56,8 +64,12 @@ func (h *HexBytes) TypeStructString() string {
 
 type String struct{ Bytes }
 
-func (s *String) Encode(value string) string {
-	bytes := []byte(value)
+func (s *String) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid string input")
+	}
+	bytes := []byte(valueStr)
 	return Encode("Compact<u32>", len(bytes)) + utiles.BytesToHex(bytes)
 }
 

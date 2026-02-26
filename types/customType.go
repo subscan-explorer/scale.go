@@ -21,6 +21,12 @@ func newStruct(names, typeString []string) *TypeMapping {
 }
 
 func RegCustomTypes(registry map[string]source.TypeStruct) {
+	resetCodecCacheOnExit := false
+	registerCustomKey := func(key string, factory CodecFactory) {
+		regCustomKey(key, factory, false)
+		resetCodecCacheOnExit = true
+	}
+
 	for key := range registry {
 		typeStruct := registry[key]
 		if typeStruct.V14 {
@@ -47,7 +53,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 			instant := TypeRegistry[strings.ToLower(typeString)]
 			TypeRegistryLock.RUnlock()
 			if instant != nil {
-				regCustomKey(key, instant)
+				registerCustomKey(key, instant)
 				continue
 			}
 
@@ -58,7 +64,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 					instant = TypeRegistry[strings.ToLower(explainedType.TypeString)]
 					TypeRegistryLock.RUnlock()
 					if instant != nil {
-						regCustomKey(key, instant)
+						registerCustomKey(key, instant)
 						continue
 					}
 				} else {
@@ -72,29 +78,44 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				typeParts := reg.FindStringSubmatch(typeString)
 				if len(typeParts) > 2 {
 					if strings.EqualFold(typeParts[1], "vec") {
-						v := Vec{}
-						v.SubType = typeParts[2]
-						regCustomKey(key, &v)
+						subType := typeParts[2]
+						registerCustomKey(key, func() Decoder {
+							v := Vec{}
+							v.SubType = subType
+							return &v
+						})
 						continue
 					} else if strings.EqualFold(typeParts[1], "option") {
-						v := Option{}
-						v.SubType = typeParts[2]
-						regCustomKey(key, &v)
+						subType := typeParts[2]
+						registerCustomKey(key, func() Decoder {
+							v := Option{}
+							v.SubType = subType
+							return &v
+						})
 						continue
 					} else if strings.EqualFold(typeParts[1], "compact") {
-						v := Compact{}
-						v.SubType = typeParts[2]
-						regCustomKey(key, &v)
+						subType := typeParts[2]
+						registerCustomKey(key, func() Decoder {
+							v := Compact{}
+							v.SubType = subType
+							return &v
+						})
 						continue
 					} else if strings.EqualFold(typeParts[1], "BTreeMap") {
-						v := BTreeMap{}
-						v.SubType = typeParts[2]
-						regCustomKey(key, &v)
+						subType := typeParts[2]
+						registerCustomKey(key, func() Decoder {
+							v := BTreeMap{}
+							v.SubType = subType
+							return &v
+						})
 						continue
 					} else if strings.EqualFold(typeParts[1], "BTreeSet") {
-						v := BTreeSet{}
-						v.SubType = typeParts[2]
-						regCustomKey(key, &v)
+						subType := typeParts[2]
+						registerCustomKey(key, func() Decoder {
+							v := BTreeSet{}
+							v.SubType = subType
+							return &v
+						})
 						continue
 					}
 				}
@@ -103,21 +124,25 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 
 			// Tuple
 			if typeString != "()" && string(typeString[0]) == "(" && typeString[len(typeString)-1:] == ")" {
-				s := Struct{}
-				s.TypeString = typeString
-				s.buildStruct()
-				regCustomKey(key, &s)
+				subType := typeString
+				registerCustomKey(key, func() Decoder {
+					s := Struct{}
+					s.TypeString = subType
+					s.buildStruct()
+					return &s
+				})
 				continue
 			}
 
 			// Array
 			if typeString != "[]" && string(typeString[0]) == "[" && typeString[len(typeString)-1:] == "]" {
 				if typePart := strings.Split(typeString[1:len(typeString)-1], ";"); len(typePart) == 2 {
-					fixed := FixedArray{
-						FixedLength: utiles.StringToInt(strings.TrimSpace(typePart[1])),
-						SubType:     strings.TrimSpace(typePart[0]),
-					}
-					regCustomKey(key, &fixed)
+					length := utiles.StringToInt(strings.TrimSpace(typePart[1]))
+					subType := strings.TrimSpace(typePart[0])
+					registerCustomKey(key, func() Decoder {
+						fixed := FixedArray{FixedLength: length, SubType: subType}
+						return &fixed
+					})
 					continue
 				}
 			}
@@ -126,9 +151,12 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				reg := regexp.MustCompile("^Result<(.+)>$")
 				typeParts := reg.FindStringSubmatch(typeString)
 				if len(typeParts) > 1 {
-					r := Result{}
-					r.SubType = typeParts[1]
-					regCustomKey(key, &r)
+					subType := typeParts[1]
+					registerCustomKey(key, func() Decoder {
+						r := Result{}
+						r.SubType = subType
+						return &r
+					})
 					continue
 				}
 			}
@@ -138,10 +166,12 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				names = append(names, v[0])
 				typeStrings = append(typeStrings, v[1])
 			}
-			s := Struct{}
-			s.TypeMapping = newStruct(names, typeStrings)
-
-			regCustomKey(key, &s)
+			subTypeMapping := newStruct(names, typeStrings)
+			registerCustomKey(key, func() Decoder {
+				s := Struct{}
+				s.TypeMapping = subTypeMapping
+				return &s
+			})
 			continue
 		case "enum":
 			var names, typeStrings []string
@@ -149,21 +179,33 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				names = append(names, v[0])
 				typeStrings = append(typeStrings, v[1])
 			}
-			e := Enum{ValueList: typeStruct.ValueList}
-			e.TypeMapping = newStruct(names, typeStrings)
-			regCustomKey(key, &e)
+			subTypeMapping := newStruct(names, typeStrings)
+			valueList := typeStruct.ValueList
+			registerCustomKey(key, func() Decoder {
+				e := Enum{ValueList: valueList}
+				e.TypeMapping = subTypeMapping
+				return &e
+			})
 			continue
 		case "set":
-			regCustomKey(key, &Set{ValueList: typeStruct.ValueList, BitLength: typeStruct.BitLength})
+			valueList := typeStruct.ValueList
+			bitLength := typeStruct.BitLength
+			registerCustomKey(key, func() Decoder {
+				return &Set{ValueList: valueList, BitLength: bitLength}
+			})
 			continue
 		}
 	}
+
+	if resetCodecCacheOnExit {
+		resetCodecCache()
+	}
 }
 
-func regCustomKey(key string, rt interface{}) {
+func regCustomKey(key string, factory CodecFactory, reset ...bool) {
 	slice := strings.Split(key, "#")
 	if len(slice) == 2 { // for Special
-		special := Special{Registry: rt, Version: []int{0, 99999999}}
+		special := Special{Registry: factory, Version: []int{0, 99999999}}
 		if version := strings.Split(slice[1], "-"); len(version) == 2 {
 			special.Version[0] = utiles.StringToInt(version[0])
 			if version[1] != "?" {
@@ -183,8 +225,15 @@ func regCustomKey(key string, rt interface{}) {
 		specialRegistryLock.Unlock()
 	} else {
 		TypeRegistryLock.Lock()
-		TypeRegistry[key] = rt
+		TypeRegistry[key] = factory
 		TypeRegistryLock.Unlock()
+	}
+	shouldReset := true
+	if len(reset) > 0 {
+		shouldReset = reset[0]
+	}
+	if shouldReset {
+		resetCodecCache()
 	}
 
 }

@@ -1,8 +1,8 @@
 package types
 
 import (
+	"encoding/binary"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strings"
 
@@ -41,12 +41,21 @@ type AdditionalSigned struct {
 	Type string `json:"type"`
 }
 
-type IScaleDecoder interface {
+type Decoder interface {
 	Init(data scaleBytes.ScaleBytes, option *ScaleDecoderOption)
 	Process()
-	Encode(interface{}) string
-
 	TypeStructString() string
+	GetData() scaleBytes.ScaleBytes
+	GetInternalCall() []string
+	GetValue() interface{}
+}
+
+type TypeMappingGetter interface {
+	GetTypeMapping() *TypeMapping
+}
+
+type Encoder interface {
+	Encode(interface{}) string
 }
 
 type ScaleDecoder struct {
@@ -100,6 +109,22 @@ func (s *ScaleDecoder) Process() {}
 
 func (s *ScaleDecoder) Encode(interface{}) string {
 	panic(fmt.Sprintf("not found base type %s", s.TypeName))
+}
+
+func (s *ScaleDecoder) GetData() scaleBytes.ScaleBytes {
+	return s.Data
+}
+
+func (s *ScaleDecoder) GetInternalCall() []string {
+	return s.InternalCall
+}
+
+func (s *ScaleDecoder) GetValue() interface{} {
+	return s.Value
+}
+
+func (s *ScaleDecoder) GetTypeMapping() *TypeMapping {
+	return s.TypeMapping
 }
 
 // TypeStructString Type Struct string
@@ -157,33 +182,75 @@ func (s *ScaleDecoder) buildStruct() {
 
 func (s *ScaleDecoder) ProcessAndUpdateData(typeString string) interface{} {
 	r := RuntimeType{Module: s.Module}
+	if value, ok := s.fastProcess(typeString); ok {
+		return value
+	}
 
-	class, value, subType := r.GetCodecClass(typeString, s.Spec)
-	if class == nil {
+	decoder, subType, err := r.GetCodec(typeString, s.Spec)
+	if err != nil {
 		panic(fmt.Sprintf("Not found decoder class %s", typeString))
 	}
 
 	offsetStart := s.Data.Offset
 
 	// init
-	method, exist := class.MethodByName("Init")
-	if !exist {
-		panic(fmt.Sprintf("%s not implement init function", typeString))
-	}
 	option := ScaleDecoderOption{SubType: subType, Spec: s.Spec, Metadata: s.Metadata, Module: s.Module, TypeName: typeString}
-	method.Func.Call([]reflect.Value{value, reflect.ValueOf(s.Data), reflect.ValueOf(&option)})
+	decoder.Init(s.Data, &option)
 
 	// process do decode
-	value.MethodByName("Process").Call(nil)
-	elementData := value.Elem().FieldByName("Data").Interface().(scaleBytes.ScaleBytes)
-	if internalCall := value.Elem().FieldByName("InternalCall").Interface().([]string); len(internalCall) > 0 {
+	decoder.Process()
+	elementData := decoder.GetData()
+	if internalCall := decoder.GetInternalCall(); len(internalCall) > 0 {
 		s.InternalCall = append(s.InternalCall, internalCall...)
 	}
 	s.Data.Offset = elementData.Offset
 	s.Data.Data = elementData.Data
 	s.RawValue = utiles.BytesToHex(s.Data.Data[offsetStart:s.Data.Offset])
 
-	return value.Elem().FieldByName("Value").Interface()
+	return decoder.GetValue()
+}
+
+func (s *ScaleDecoder) fastProcess(typeString string) (interface{}, bool) {
+	switch strings.ToLower(typeString) {
+	case "u8":
+		offsetStart := s.Data.Offset
+		data := s.Data.GetNextBytes(1)
+		var value int
+		if len(data) > 0 {
+			value = int(data[0])
+		}
+		s.RawValue = utiles.BytesToHex(s.Data.Data[offsetStart:s.Data.Offset])
+		return value, true
+	case "u16":
+		offsetStart := s.Data.Offset
+		data := s.Data.GetNextBytes(2)
+		var c [2]byte
+		copy(c[:], data)
+		s.RawValue = utiles.BytesToHex(s.Data.Data[offsetStart:s.Data.Offset])
+		return binary.LittleEndian.Uint16(c[:]), true
+	case "u32":
+		offsetStart := s.Data.Offset
+		data := s.Data.GetNextBytes(4)
+		var c [4]byte
+		copy(c[:], data)
+		s.RawValue = utiles.BytesToHex(s.Data.Data[offsetStart:s.Data.Offset])
+		return binary.LittleEndian.Uint32(c[:]), true
+	case "u64":
+		offsetStart := s.Data.Offset
+		data := s.Data.GetNextBytes(8)
+		var c [8]byte
+		copy(c[:], data)
+		s.RawValue = utiles.BytesToHex(s.Data.Data[offsetStart:s.Data.Offset])
+		return binary.LittleEndian.Uint64(c[:]), true
+	case "bool":
+		offsetStart := s.Data.Offset
+		data := s.Data.GetNextBytes(1)
+		value := len(data) > 0 && data[0] == 1
+		s.RawValue = utiles.BytesToHex(s.Data.Data[offsetStart:s.Data.Offset])
+		return value, true
+	default:
+		return nil, false
+	}
 }
 
 func Encode(typeString string, data interface{}) string {
@@ -199,24 +266,21 @@ func EncodeWithOpt(typeString string, data interface{}, opt *ScaleDecoderOption)
 		opt = &ScaleDecoderOption{Spec: -1}
 	}
 	opt.TypeName = typeString
-	class, value, subType := r.GetCodecClass(typeString, opt.Spec)
-	if class == nil {
+	decoder, subType, err := r.GetCodec(typeString, opt.Spec)
+	if err != nil {
 		panic(fmt.Sprintf("Not found decoder class %s", typeString))
 	}
-	method, _ := class.MethodByName("Init")
 	opt.SubType = subType
-	method.Func.Call([]reflect.Value{value, reflect.ValueOf(scaleBytes.EmptyScaleBytes()), reflect.ValueOf(opt)})
-	var val reflect.Value
-	if data == nil {
-		val = reflect.New(reflect.TypeOf("")).Elem()
-	} else {
-		val = reflect.ValueOf(data)
+	decoder.Init(scaleBytes.EmptyScaleBytes(), opt)
+	dataVal := data
+	if dataVal == nil {
+		dataVal = ""
 	}
-	out := value.MethodByName("Encode").Call([]reflect.Value{val})
-	if len(out) > 0 {
-		return utiles.TrimHex(strings.ToLower(out[0].String()))
+	encoder, ok := decoder.(Encoder)
+	if !ok {
+		panic(fmt.Sprintf("%s not implement Encode function", typeString))
 	}
-	return ""
+	return utiles.TrimHex(strings.ToLower(encoder.Encode(dataVal)))
 }
 
 func EqTypeStringWithTypeStruct(typeString string, dest *source.TypeStruct) bool {
@@ -249,18 +313,13 @@ func EqTypeStringWithTypeStruct(typeString string, dest *source.TypeStruct) bool
 // getTypeStructString get type struct string
 func getTypeStructString(typeString string, recursiveTime int) string {
 	r := RuntimeType{}
-	class, value, subType := r.GetCodecClass(typeString, 0)
-	if class == nil {
+	decoder, subType, err := r.GetCodec(typeString, 0)
+	if err != nil {
 		return ""
 	}
-	method, _ := class.MethodByName("Init")
 	opt := &ScaleDecoderOption{SubType: subType, TypeName: typeString, recursiveTime: recursiveTime}
-	method.Func.Call([]reflect.Value{value, reflect.ValueOf(scaleBytes.EmptyScaleBytes()), reflect.ValueOf(opt)})
-	typeNameValue := value.MethodByName("TypeStructString").Call(nil)
-	if len(typeNameValue) == 0 {
-		return ""
-	}
-	return typeNameValue[0].String()
+	decoder.Init(scaleBytes.EmptyScaleBytes(), opt)
+	return decoder.TypeStructString()
 }
 
 // Eq check type string is equal

@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"math/big"
-	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/shopspring/decimal"
 )
 
 func StringToInt(s string) int {
@@ -152,17 +152,6 @@ func U8Encode(i int) string {
 	bs := make([]byte, 1)
 	bs[0] = byte(i)
 	return BytesToHex(bs)
-}
-
-func IsNil(a interface{}) bool {
-	if a == nil {
-		return true
-	}
-	switch reflect.TypeOf(a).Kind() {
-	case reflect.Ptr, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice, reflect.Interface, reflect.Func:
-		return reflect.ValueOf(a).IsNil()
-	}
-	return false
 }
 
 // GetEnumValue  get enum single key && value

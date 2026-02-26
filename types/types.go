@@ -1,9 +1,7 @@
 package types
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -47,8 +45,12 @@ func (h *H160) Process() {
 	h.Value = utiles.AddHex(utiles.BytesToHex(h.NextBytes(20)))
 }
 
-func (h *H160) Encode(value string) string {
-	return utiles.AddHex(strings.ToLower(value))
+func (h *H160) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid H160 input")
+	}
+	return utiles.AddHex(strings.ToLower(valueStr))
 }
 
 func (h *H160) TypeStructString() string {
@@ -63,8 +65,12 @@ func (h *H256) Process() {
 	h.Value = utiles.AddHex(utiles.BytesToHex(h.NextBytes(32)))
 }
 
-func (h *H256) Encode(value string) string {
-	return utiles.AddHex(strings.ToLower(value))
+func (h *H256) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid H256 input")
+	}
+	return utiles.AddHex(strings.ToLower(valueStr))
 }
 
 func (h *H256) TypeStructString() string {
@@ -79,8 +85,12 @@ func (h *H512) Process() {
 	h.Value = utiles.AddHex(utiles.BytesToHex(h.NextBytes(64)))
 }
 
-func (h *H512) Encode(value string) string {
-	return utiles.AddHex(strings.ToLower(value))
+func (h *H512) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid H512 input")
+	}
+	return utiles.AddHex(strings.ToLower(valueStr))
 }
 
 func (h *H512) TypeStructString() string {
@@ -100,7 +110,11 @@ func (e *Era) Process() {
 	}
 }
 
-func (e *Era) Encode(era string) string {
+func (e *Era) Encode(value interface{}) string {
+	era, ok := value.(string)
+	if !ok {
+		panic("invalid Era input")
+	}
 	return era
 }
 
@@ -183,8 +197,12 @@ func (s *AccountId) Process() {
 	s.Value = utiles.AddHex(xstrings.RightJustify(utiles.BytesToHex(s.NextBytes(32)), 64, "0"))
 }
 
-func (s *AccountId) Encode(value string) string {
-	return value
+func (s *AccountId) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid AccountId input")
+	}
+	return valueStr
 }
 
 func (s *AccountId) TypeStructString() string {
@@ -196,17 +214,14 @@ type Balance struct {
 }
 
 func (b *Balance) Process() {
-	buf := &bytes.Buffer{}
-	var reader io.Reader
-	reader = buf
-	_, _ = buf.Write(b.NextBytes(16))
-	c := make([]byte, 16)
-	_, _ = reader.Read(c)
-	if utiles.BytesToHex(c) == "ffffffffffffffffffffffffffffffff" {
+	data := b.NextBytes(16)
+	var c [16]byte
+	copy(c[:], data)
+	if utiles.BytesToHex(c[:]) == "ffffffffffffffffffffffffffffffff" {
 		b.Value = decimal.NewFromInt32(-1)
 		return
 	}
-	b.Value = decimal.NewFromBigInt(uint128.FromBytes(c).Big(), 0)
+	b.Value = decimal.NewFromBigInt(uint128.FromBytes(c[:]).Big(), 0)
 }
 
 type LogDigest struct{ Enum }
@@ -371,8 +386,12 @@ func (d *Data) Process() {
 	}
 }
 
-func (d *Data) Encode(v map[string]interface{}) string {
-	key, val, err := utiles.GetEnumValue(v)
+func (d *Data) Encode(value interface{}) string {
+	typed, ok := value.(map[string]interface{})
+	if !ok {
+		panic("invalid Data input")
+	}
+	key, val, err := utiles.GetEnumValue(typed)
 	if err != nil {
 		panic(err)
 	}
@@ -380,7 +399,11 @@ func (d *Data) Encode(v map[string]interface{}) string {
 		if key == "None" {
 			return Encode("U8", 0)
 		}
-		return Encode("U8", index+32) + Encode(d.TypeMapping.Types[index], val.(string))
+		valStr, ok := val.(string)
+		if !ok {
+			panic("invalid Data value")
+		}
+		return Encode("U8", index+32) + Encode(d.TypeMapping.Types[index], valStr)
 	}
 	// raw data
 	if strings.HasPrefix(key, "Raw") {
@@ -390,10 +413,14 @@ func (d *Data) Encode(v map[string]interface{}) string {
 		} else {
 			l++
 			indexRaw := Encode("U8", l)
-			if l == len(val.(string)) {
-				return indexRaw + val.(string)
+			valStr, ok := val.(string)
+			if !ok {
+				panic("invalid Data raw value")
 			}
-			return indexRaw + utiles.BytesToHex([]byte(val.(string)))
+			if l == len(valStr) {
+				return indexRaw + valStr
+			}
+			return indexRaw + utiles.BytesToHex([]byte(valStr))
 		}
 	}
 	panic("invalid enum key")
@@ -494,9 +521,13 @@ func (b *BitVec) TypeStructString() string {
 	return "BitVec"
 }
 
-func (b *BitVec) Encode(value string) string {
-	value = strings.TrimPrefix(value, "0b")
-	values := strings.Split(value, "_")
+func (b *BitVec) Encode(value interface{}) string {
+	valueStr, ok := value.(string)
+	if !ok {
+		panic("invalid BitVec input")
+	}
+	valueStr = strings.TrimPrefix(valueStr, "0b")
+	values := strings.Split(valueStr, "_")
 	var u8a []byte
 	for _, v := range values {
 		b, _ := strconv.ParseUint(v, 2, 8)

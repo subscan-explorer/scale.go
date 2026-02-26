@@ -24,11 +24,15 @@ func (s *Struct) Process() {
 	s.Value = result
 }
 
-func (s *Struct) Encode(value map[string]interface{}) string {
+func (s *Struct) Encode(value interface{}) string {
 	var raw string
+	typed, ok := value.(map[string]interface{})
+	if !ok {
+		panic("invalid struct input")
+	}
 	if s.TypeMapping != nil {
 		for k, v := range s.TypeMapping.Names {
-			raw += EncodeWithOpt(s.TypeMapping.Types[k], value[v], &ScaleDecoderOption{Spec: s.Spec, Metadata: s.Metadata})
+			raw += EncodeWithOpt(s.TypeMapping.Types[k], typed[v], &ScaleDecoderOption{Spec: s.Spec, Metadata: s.Metadata})
 		}
 	}
 	return raw
