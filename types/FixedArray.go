@@ -72,5 +72,5 @@ func (f *FixedArray) Encode(value interface{}) string {
 	if f.FixedLength == 1 {
 		return EncodeWithOpt(f.SubType, value, &ScaleDecoderOption{Spec: f.Spec, Metadata: f.Metadata})
 	}
-	panic(fmt.Errorf("invalid vec input"))
+	panic(fmt.Errorf("invalid fixed array input: expected fixed length %d with subtype %q, got value of type %T", f.FixedLength, f.SubType, value))
 }

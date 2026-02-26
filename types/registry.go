@@ -114,11 +114,9 @@ func (r *RuntimeType) getCodecInstant(t string, spec int) (Decoder, CodecFactory
 		if factory == nil && t != "[]" && string(t[0]) == "[" && t[len(t)-1:] == "]" {
 			if typePart := strings.Split(t[1:len(t)-1], ";"); len(typePart) >= 2 {
 				remainPart := typePart[0 : len(typePart)-1]
-				fixed := FixedArray{
-					FixedLength: utiles.StringToInt(strings.TrimSpace(typePart[len(typePart)-1])),
-					SubType:     strings.TrimSpace(strings.Join(remainPart, ";")),
-				}
-				factory = func() Decoder { return &fixed }
+				fixedLength := utiles.StringToInt(strings.TrimSpace(typePart[len(typePart)-1]))
+				subType := strings.TrimSpace(strings.Join(remainPart, ";"))
+				factory = func() Decoder { return &FixedArray{FixedLength: fixedLength, SubType: subType} }
 			}
 		}
 		if factory == nil {

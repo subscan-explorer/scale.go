@@ -21,3 +21,15 @@ func TestGetTypeMappingConsensus(t *testing.T) {
 		assert.Equal(t, []string{"u32", "Vec<u8>"}, tm.Types)
 	}
 }
+
+func TestGetCodecFixedArrayReturnsFreshInstance(t *testing.T) {
+	resetCodecCache()
+	r := RuntimeType{}
+	first, _, err := r.GetCodec("[u16; 2]", 0)
+	assert.NoError(t, err)
+	second, _, err := r.GetCodec("[u16; 2]", 0)
+	assert.NoError(t, err)
+	assert.IsType(t, &FixedArray{}, first)
+	assert.IsType(t, &FixedArray{}, second)
+	assert.NotSame(t, first, second)
+}

@@ -222,7 +222,7 @@ func (u *U256) Encode(value interface{}) string {
 	default:
 		values, ok := asInterfaceSlice(value)
 		if !ok {
-			panic(fmt.Errorf("invalid vec input"))
+			panic(fmt.Errorf("invalid U256 input: expected slice-like value, got %T (%v)", value, value))
 		}
 		if len(values) != 32 {
 			panic("fixed length not match")

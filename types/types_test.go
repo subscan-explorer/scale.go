@@ -362,6 +362,12 @@ func TestFixedArray(t *testing.T) {
 	}
 }
 
+func TestFixedArrayEncodeInvalidInputMessage(t *testing.T) {
+	assert.PanicsWithError(t, `invalid fixed array input: expected fixed length 2 with subtype "u16", got value of type int`, func() {
+		Encode("[u16; 2]", 1)
+	})
+}
+
 func TestVecEncodeSliceTypes(t *testing.T) {
 	assert.Equal(t, "080100000002000000", Encode("Vec<u32>", []uint32{1, 2}))
 	assert.Equal(t, "080100000002000000", Encode("Vec<u32>", []int{1, 2}))
@@ -376,6 +382,12 @@ func TestU256(t *testing.T) {
 	assert.Equal(t, raw, utiles.AddHex(Encode("U256", utiles.HexToBytes(raw))))
 	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("0x00b5070000000000000000000000000000000000000000000000000000000000")}, nil)
 	assert.Equal(t, int64(505088), m.ProcessAndUpdateData("U256").(decimal.Decimal).IntPart())
+}
+
+func TestU256EncodeInvalidInputMessage(t *testing.T) {
+	assert.PanicsWithError(t, "invalid U256 input: expected slice-like value, got int (1)", func() {
+		Encode("U256", 1)
+	})
 }
 
 func TestXcmV2ResultType(t *testing.T) {

@@ -59,3 +59,27 @@ func TestCodecCacheConcurrency(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestRegCustomTypesResetsCodecCacheAfterBulkRegister(t *testing.T) {
+	r := RuntimeType{}
+	_, _, err := r.GetCodec("U32", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codecCacheLock.RLock()
+	before := len(codecCache)
+	codecCacheLock.RUnlock()
+	if before == 0 {
+		t.Fatal("expected codec cache to contain entries before custom registration")
+	}
+	RegCustomTypes(map[string]source.TypeStruct{
+		"CacheResetTypeA": {Type: "string", TypeString: "u32"},
+		"CacheResetTypeB": {Type: "string", TypeString: "u64"},
+	})
+	codecCacheLock.RLock()
+	after := len(codecCache)
+	codecCacheLock.RUnlock()
+	if after != 0 {
+		t.Fatalf("expected codec cache to be reset after bulk registration, got %d entries", after)
+	}
+}

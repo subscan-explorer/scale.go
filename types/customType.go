@@ -21,6 +21,12 @@ func newStruct(names, typeString []string) *TypeMapping {
 }
 
 func RegCustomTypes(registry map[string]source.TypeStruct) {
+	resetCodecCacheOnExit := false
+	registerCustomKey := func(key string, factory CodecFactory) {
+		regCustomKey(key, factory, false)
+		resetCodecCacheOnExit = true
+	}
+
 	for key := range registry {
 		typeStruct := registry[key]
 		if typeStruct.V14 {
@@ -47,7 +53,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 			instant := TypeRegistry[strings.ToLower(typeString)]
 			TypeRegistryLock.RUnlock()
 			if instant != nil {
-				regCustomKey(key, instant)
+				registerCustomKey(key, instant)
 				continue
 			}
 
@@ -58,7 +64,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 					instant = TypeRegistry[strings.ToLower(explainedType.TypeString)]
 					TypeRegistryLock.RUnlock()
 					if instant != nil {
-						regCustomKey(key, instant)
+						registerCustomKey(key, instant)
 						continue
 					}
 				} else {
@@ -73,7 +79,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				if len(typeParts) > 2 {
 					if strings.EqualFold(typeParts[1], "vec") {
 						subType := typeParts[2]
-						regCustomKey(key, func() Decoder {
+						registerCustomKey(key, func() Decoder {
 							v := Vec{}
 							v.SubType = subType
 							return &v
@@ -81,7 +87,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 						continue
 					} else if strings.EqualFold(typeParts[1], "option") {
 						subType := typeParts[2]
-						regCustomKey(key, func() Decoder {
+						registerCustomKey(key, func() Decoder {
 							v := Option{}
 							v.SubType = subType
 							return &v
@@ -89,7 +95,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 						continue
 					} else if strings.EqualFold(typeParts[1], "compact") {
 						subType := typeParts[2]
-						regCustomKey(key, func() Decoder {
+						registerCustomKey(key, func() Decoder {
 							v := Compact{}
 							v.SubType = subType
 							return &v
@@ -97,7 +103,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 						continue
 					} else if strings.EqualFold(typeParts[1], "BTreeMap") {
 						subType := typeParts[2]
-						regCustomKey(key, func() Decoder {
+						registerCustomKey(key, func() Decoder {
 							v := BTreeMap{}
 							v.SubType = subType
 							return &v
@@ -105,7 +111,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 						continue
 					} else if strings.EqualFold(typeParts[1], "BTreeSet") {
 						subType := typeParts[2]
-						regCustomKey(key, func() Decoder {
+						registerCustomKey(key, func() Decoder {
 							v := BTreeSet{}
 							v.SubType = subType
 							return &v
@@ -119,7 +125,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 			// Tuple
 			if typeString != "()" && string(typeString[0]) == "(" && typeString[len(typeString)-1:] == ")" {
 				subType := typeString
-				regCustomKey(key, func() Decoder {
+				registerCustomKey(key, func() Decoder {
 					s := Struct{}
 					s.TypeString = subType
 					s.buildStruct()
@@ -133,7 +139,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				if typePart := strings.Split(typeString[1:len(typeString)-1], ";"); len(typePart) == 2 {
 					length := utiles.StringToInt(strings.TrimSpace(typePart[1]))
 					subType := strings.TrimSpace(typePart[0])
-					regCustomKey(key, func() Decoder {
+					registerCustomKey(key, func() Decoder {
 						fixed := FixedArray{FixedLength: length, SubType: subType}
 						return &fixed
 					})
@@ -146,7 +152,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				typeParts := reg.FindStringSubmatch(typeString)
 				if len(typeParts) > 1 {
 					subType := typeParts[1]
-					regCustomKey(key, func() Decoder {
+					registerCustomKey(key, func() Decoder {
 						r := Result{}
 						r.SubType = subType
 						return &r
@@ -161,7 +167,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 				typeStrings = append(typeStrings, v[1])
 			}
 			subTypeMapping := newStruct(names, typeStrings)
-			regCustomKey(key, func() Decoder {
+			registerCustomKey(key, func() Decoder {
 				s := Struct{}
 				s.TypeMapping = subTypeMapping
 				return &s
@@ -175,7 +181,7 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 			}
 			subTypeMapping := newStruct(names, typeStrings)
 			valueList := typeStruct.ValueList
-			regCustomKey(key, func() Decoder {
+			registerCustomKey(key, func() Decoder {
 				e := Enum{ValueList: valueList}
 				e.TypeMapping = subTypeMapping
 				return &e
@@ -184,15 +190,19 @@ func RegCustomTypes(registry map[string]source.TypeStruct) {
 		case "set":
 			valueList := typeStruct.ValueList
 			bitLength := typeStruct.BitLength
-			regCustomKey(key, func() Decoder {
+			registerCustomKey(key, func() Decoder {
 				return &Set{ValueList: valueList, BitLength: bitLength}
 			})
 			continue
 		}
 	}
+
+	if resetCodecCacheOnExit {
+		resetCodecCache()
+	}
 }
 
-func regCustomKey(key string, factory CodecFactory) {
+func regCustomKey(key string, factory CodecFactory, reset ...bool) {
 	slice := strings.Split(key, "#")
 	if len(slice) == 2 { // for Special
 		special := Special{Registry: factory, Version: []int{0, 99999999}}
@@ -218,6 +228,12 @@ func regCustomKey(key string, factory CodecFactory) {
 		TypeRegistry[key] = factory
 		TypeRegistryLock.Unlock()
 	}
-	resetCodecCache()
+	shouldReset := true
+	if len(reset) > 0 {
+		shouldReset = reset[0]
+	}
+	if shouldReset {
+		resetCodecCache()
+	}
 
 }
