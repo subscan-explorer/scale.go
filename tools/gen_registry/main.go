@@ -15,7 +15,7 @@ func main() {
 		panic(err)
 	}
 
-	registryPath := filepath.Join(root, "registry_types.go")
+	registryPath := filepath.Join(root, "types/registry_types.go")
 	content, err := os.ReadFile(registryPath)
 	if err != nil {
 		panic(err)
@@ -52,7 +52,7 @@ func main() {
 		panic(err)
 	}
 
-	outPath := filepath.Join(root, "registry_gen.go")
+	outPath := filepath.Join(root, "types/registry_gen.go")
 	if err := os.WriteFile(outPath, formatted, 0o644); err != nil {
 		panic(err)
 	}
