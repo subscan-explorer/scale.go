@@ -10,26 +10,34 @@ import (
 )
 
 type MetadataModules struct {
-	Name        string                `json:"name"`
-	Prefix      string                `json:"prefix"`
-	Storage     []MetadataStorage     `json:"storage"`
-	Calls       []MetadataCalls       `json:"calls,omitempty"`
-	CallsValue  *PalletLookUp         `json:"calls_value,omitempty"`
-	Events      []MetadataEvents      `json:"events,omitempty"`
-	EventsValue *PalletLookUp         `json:"events_value,omitempty"`
-	Constants   []MetadataConstants   `json:"constants,omitempty"`
-	Errors      []MetadataModuleError `json:"errors"`
-	ErrorsValue *PalletLookUp         `json:"errors_value"`
-	Index       int                   `json:"index"`
+	Name                  string                         `json:"name"`
+	Prefix                string                         `json:"prefix"`
+	Storage               []MetadataStorage              `json:"storage"`
+	Calls                 []MetadataCalls                `json:"calls,omitempty"`
+	CallsValue            *PalletLookUp                  `json:"calls_value,omitempty"`
+	CallsDeprecationInfo  map[int]DeprecationInfo        `json:"calls_deprecation_info,omitempty"`
+	Events                []MetadataEvents               `json:"events,omitempty"`
+	EventsValue           *PalletLookUp                  `json:"events_value,omitempty"`
+	EventsDeprecationInfo map[int]DeprecationInfo        `json:"events_deprecation_info,omitempty"`
+	Constants             []MetadataConstants            `json:"constants,omitempty"`
+	Errors                []MetadataModuleError          `json:"errors"`
+	ErrorsValue           *PalletLookUp                  `json:"errors_value"`
+	ErrorsDeprecationInfo map[int]DeprecationInfo        `json:"errors_deprecation_info,omitempty"`
+	AssociatedTypes       []PalletAssociatedTypeMetadata `json:"associated_types,omitempty"`
+	ViewFunctions         []PalletViewFunctionMetadata   `json:"view_functions,omitempty"`
+	DeprecationInfo       *DeprecationInfo               `json:"deprecation_info,omitempty"`
+	Index                 int                            `json:"index"`
+	Docs                  []string                       `json:"docs,omitempty"`
 }
 
 type MetadataStorage struct {
-	Name     string      `json:"name"`
-	Modifier string      `json:"modifier"`
-	Type     StorageType `json:"type"`
-	Fallback string      `json:"fallback"`
-	Docs     []string    `json:"docs"`
-	Hasher   string      `json:"hasher,omitempty"`
+	Name            string           `json:"name"`
+	Modifier        string           `json:"modifier"`
+	Type            StorageType      `json:"type"`
+	Fallback        string           `json:"fallback"`
+	Docs            []string         `json:"docs"`
+	Hasher          string           `json:"hasher,omitempty"`
+	DeprecationInfo *DeprecationInfo `json:"deprecation_info,omitempty"`
 }
 
 type StorageType struct {
@@ -83,21 +91,23 @@ type NMapType struct {
 }
 
 type MetadataCalls struct {
-	Lookup      string                       `json:"lookup"`
-	Name        string                       `json:"name"`
-	Docs        []string                     `json:"docs"`
-	Args        []MetadataModuleCallArgument `json:"args"`
-	LookupIndex int                          `json:"-"`
+	Lookup          string                       `json:"lookup"`
+	Name            string                       `json:"name"`
+	Docs            []string                     `json:"docs"`
+	Args            []MetadataModuleCallArgument `json:"args"`
+	DeprecationInfo *DeprecationInfo             `json:"deprecation_info,omitempty"`
+	LookupIndex     int                          `json:"-"`
 }
 
 type MetadataEvents struct {
-	Lookup       string   `json:"lookup"`
-	Name         string   `json:"name"`
-	Docs         []string `json:"docs"`
-	Args         []string `json:"args"`
-	ArgsName     []string `json:"args_name,omitempty"`
-	ArgsTypeName []string `json:"args_type_name,omitempty"`
-	LookupIndex  int      `json:"-"`
+	Lookup          string           `json:"lookup"`
+	Name            string           `json:"name"`
+	Docs            []string         `json:"docs"`
+	Args            []string         `json:"args"`
+	ArgsName        []string         `json:"args_name,omitempty"`
+	ArgsTypeName    []string         `json:"args_type_name,omitempty"`
+	DeprecationInfo *DeprecationInfo `json:"deprecation_info,omitempty"`
+	LookupIndex     int              `json:"-"`
 }
 
 type MetadataStruct struct {
@@ -113,17 +123,20 @@ type MetadataStruct struct {
 }
 
 type RuntimeApiMetadata struct {
-	Name    string                     `json:"name"`
-	Methods []RuntimeApiMethodMetadata `json:"methods"`
-	Docs    []string                   `json:"docs"`
+	Name            string                     `json:"name"`
+	Methods         []RuntimeApiMethodMetadata `json:"methods"`
+	Docs            []string                   `json:"docs"`
+	Version         int                        `json:"version,omitempty"`
+	DeprecationInfo *DeprecationInfo           `json:"deprecation_info,omitempty"`
 }
 
 type RuntimeApiMethodMetadata struct {
-	Name      string                          `json:"name"`
-	Inputs    []RuntimeApiMethodParamMetadata `json:"inputs"`
-	OutputsId int                             `json:"outputsId"`
-	Outputs   string                          `json:"outputs"`
-	Docs      []string                        `json:"docs"`
+	Name            string                          `json:"name"`
+	Inputs          []RuntimeApiMethodParamMetadata `json:"inputs"`
+	OutputsId       int                             `json:"outputsId"`
+	Outputs         string                          `json:"outputs"`
+	Docs            []string                        `json:"docs"`
+	DeprecationInfo *DeprecationInfo                `json:"deprecation_info,omitempty"`
 }
 
 type RuntimeApiMethodParamMetadata struct {
@@ -133,14 +146,53 @@ type RuntimeApiMethodParamMetadata struct {
 }
 
 type ExtrinsicMetadata struct {
-	Type             int                `json:"type,omitempty"`
-	Version          int                `json:"version"`
-	AddressType      int                `json:"addressType,omitempty"`
-	CallType         int                `json:"callType,omitempty"`
-	SignatureType    int                `json:"signatureType,omitempty"`
-	ExtraType        int                `json:"extraType,omitempty"`
-	SignedExtensions []SignedExtensions `json:"signedExtensions"`
-	SignedIdentifier []string           `json:"signed_identifier"`
+	Type                           int                              `json:"type,omitempty"`
+	Version                        int                              `json:"version"`
+	Versions                       string                           `json:"versions,omitempty"`
+	AddressType                    int                              `json:"addressType,omitempty"`
+	CallType                       int                              `json:"callType,omitempty"`
+	SignatureType                  int                              `json:"signatureType,omitempty"`
+	ExtraType                      int                              `json:"extraType,omitempty"`
+	SignedExtensions               []SignedExtensions               `json:"signedExtensions"`
+	SignedIdentifier               []string                         `json:"signed_identifier"`
+	TransactionExtensionsByVersion []TransactionExtensionsByVersion `json:"transaction_extensions_by_version,omitempty"`
+	TransactionExtensions          []TransactionExtensionMetadata   `json:"transaction_extensions,omitempty"`
+}
+
+type DeprecationInfo struct {
+	Type  string  `json:"type"`
+	Note  string  `json:"note,omitempty"`
+	Since *string `json:"since,omitempty"`
+}
+
+type PalletAssociatedTypeMetadata struct {
+	Name   string   `json:"name"`
+	TypeId int      `json:"type_id"`
+	Type   string   `json:"type,omitempty"`
+	Docs   []string `json:"docs"`
+}
+
+type PalletViewFunctionMetadata struct {
+	ID              string                          `json:"id"`
+	Name            string                          `json:"name"`
+	Inputs          []RuntimeApiMethodParamMetadata `json:"inputs"`
+	OutputId        int                             `json:"output_id"`
+	Output          string                          `json:"output,omitempty"`
+	Docs            []string                        `json:"docs"`
+	DeprecationInfo *DeprecationInfo                `json:"deprecation_info,omitempty"`
+}
+
+type TransactionExtensionsByVersion struct {
+	Version    int   `json:"version"`
+	Extensions []int `json:"extensions"`
+}
+
+type TransactionExtensionMetadata struct {
+	Identifier     string `json:"identifier"`
+	Type           int    `json:"type"`
+	TypeString     string `json:"type_string,omitempty"`
+	Implicit       int    `json:"implicit"`
+	ImplicitString string `json:"implicit_string,omitempty"`
 }
 
 type OuterEnumsMetadata struct {
@@ -173,11 +225,12 @@ type MetadataTag struct {
 }
 
 type MetadataConstants struct {
-	Name           string   `json:"name"`
-	Type           string   `json:"type"`
-	TypeValue      int      `json:"type_value"`
-	ConstantsValue string   `json:"constants_value"`
-	Docs           []string `json:"docs"`
+	Name            string           `json:"name"`
+	Type            string           `json:"type"`
+	TypeValue       int              `json:"type_value"`
+	ConstantsValue  string           `json:"constants_value"`
+	Docs            []string         `json:"docs"`
+	DeprecationInfo *DeprecationInfo `json:"deprecation_info,omitempty"`
 }
 
 type ExtrinsicParam struct {
@@ -752,11 +805,12 @@ func (m *MetadataV8Module) Process() {
 }
 
 type MetadataModuleError struct {
-	ScaleDecoder `json:"-"`
-	Name         string             `json:"name"`
-	Doc          []string           `json:"doc"`
-	Fields       []ModuleErrorField `json:"fields,omitempty"`
-	Index        int                `json:"index"`
+	ScaleDecoder    `json:"-"`
+	Name            string             `json:"name"`
+	Doc             []string           `json:"doc"`
+	Fields          []ModuleErrorField `json:"fields,omitempty"`
+	DeprecationInfo *DeprecationInfo   `json:"deprecation_info,omitempty"`
+	Index           int                `json:"index"`
 }
 
 type ModuleErrorField struct {

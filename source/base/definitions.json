@@ -17,7 +17,8 @@
       "MetadataV12Decoder",
       "MetadataV13Decoder",
       "MetadataV14Decoder",
-      "MetadataV15Decoder"
+      "MetadataV15Decoder",
+      "MetadataV16Decoder"
     ]
   },
   "AccountIndex": "U32",
