@@ -25,11 +25,26 @@ type ChangesList struct {
 }
 
 type CompareChanges struct {
-	Prev    string `json:"prev"`
-	Current string `json:"next"`
+	Prev              string `json:"prev"`
+	Current           string `json:"next"`
+	PrevTypeStruct    string `json:"prev_type_struct,omitempty"`
+	CurrentTypeStruct string `json:"next_type_struct,omitempty"`
 }
 
 func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
+
+	var filterStructTypeString = func(typeString string) string {
+		lowerTypeString := strings.ToLower(typeString)
+		if strings.Contains(lowerTypeString, "multilocation") ||
+			strings.Contains(lowerTypeString, "multiassets") ||
+			strings.Contains(lowerTypeString, "versionedxcm") ||
+			strings.Contains(lowerTypeString, "instruction") ||
+			strings.Contains(lowerTypeString, "traits:error") {
+			return typeString
+		}
+		return getTypeStructString(typeString, 0)
+	}
+
 	var getModuleByName = func(name string) *MetadataModules {
 		for _, module := range dest.Modules {
 			if module.Name == name {
@@ -73,13 +88,30 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 		}
 		return fmt.Sprintf("%s(%s)", call.Name, strings.Join(args, ","))
 	}
+	var buildCallTypeStructArgs = func(call MetadataCalls) string {
+		var args []string
+		for _, arg := range call.Args {
+			args = append(args, filterStructTypeString(arg.Type))
+		}
+		return fmt.Sprintf("%s(%s)", call.Name, strings.Join(args, ","))
+	}
 
 	var buildEventArgs = func(event MetadataEvents) string {
 		return fmt.Sprintf("%s(%s)", event.Name, strings.Join(event.Args, ","))
 	}
+	var buildEventTypeStructArgs = func(event MetadataEvents) string {
+		var args []string
+		for _, arg := range event.Args {
+			args = append(args, filterStructTypeString(arg))
+		}
+		return fmt.Sprintf("%s(%s)", event.Name, strings.Join(args, ","))
+	}
 
 	var buildStorageArgs = func(moduleName string, storage MetadataStorage) string {
 		return fmt.Sprintf("%s.%s: %s", moduleName, storage.Name, storage.Type.TypeValue())
+	}
+	var buildStorageTypeStructArgs = func(moduleName string, storage MetadataStorage) string {
+		return fmt.Sprintf("%s.%s: %s", moduleName, storage.Name, filterStructTypeString(storage.Type.TypeValue()))
 	}
 
 	var result MetadataCompareResult
@@ -104,8 +136,10 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 			// check call args
 			if len(call.Args) != len(destCall.Args) {
 				calls.Changes = append(calls.Changes, CompareChanges{
-					Prev:    buildCallArgs(*destCall),
-					Current: buildCallArgs(call),
+					Prev:              buildCallArgs(*destCall),
+					Current:           buildCallArgs(call),
+					PrevTypeStruct:    buildCallTypeStructArgs(*destCall),
+					CurrentTypeStruct: buildCallTypeStructArgs(call),
 				})
 				continue
 			}
@@ -114,8 +148,10 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 				destType := destCall.Args[index].Type
 				if !Eq(arg.Type, destType) {
 					calls.Changes = append(calls.Changes, CompareChanges{
-						Prev:    buildCallArgs(*destCall),
-						Current: buildCallArgs(call),
+						Prev:              buildCallArgs(*destCall),
+						Current:           buildCallArgs(call),
+						PrevTypeStruct:    buildCallTypeStructArgs(*destCall),
+						CurrentTypeStruct: buildCallTypeStructArgs(call),
 					})
 					continue
 				}
@@ -136,8 +172,10 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 			// check call args
 			if len(event.Args) != len(destEvent.Args) {
 				Events.Changes = append(Events.Changes, CompareChanges{
-					Prev:    buildEventArgs(*destEvent),
-					Current: buildEventArgs(event),
+					Prev:              buildEventArgs(*destEvent),
+					Current:           buildEventArgs(event),
+					PrevTypeStruct:    buildEventTypeStructArgs(*destEvent),
+					CurrentTypeStruct: buildEventTypeStructArgs(event),
 				})
 				continue
 			}
@@ -145,8 +183,10 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 				// check every type
 				if !Eq(arg, destEvent.Args[index]) {
 					Events.Changes = append(Events.Changes, CompareChanges{
-						Prev:    buildEventArgs(*destEvent),
-						Current: buildEventArgs(event),
+						Prev:              buildEventArgs(*destEvent),
+						Current:           buildEventArgs(event),
+						PrevTypeStruct:    buildEventTypeStructArgs(*destEvent),
+						CurrentTypeStruct: buildEventTypeStructArgs(event),
 					})
 					continue
 				}
@@ -167,8 +207,10 @@ func (m *MetadataTag) Compare(dest *MetadataTag) *MetadataCompareResult {
 
 			if !Eq(storageItem.Type.TypeValue(), destStorage.Type.TypeValue()) {
 				storage.Changes = append(storage.Changes, CompareChanges{
-					Prev:    buildStorageArgs(module.Name, *destStorage),
-					Current: buildStorageArgs(module.Name, storageItem),
+					Prev:              buildStorageArgs(module.Name, *destStorage),
+					Current:           buildStorageArgs(module.Name, storageItem),
+					PrevTypeStruct:    buildStorageTypeStructArgs(module.Name, *destStorage),
+					CurrentTypeStruct: buildStorageTypeStructArgs(module.Name, storageItem),
 				})
 			}
 		}
