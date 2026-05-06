@@ -324,6 +324,30 @@ func (g *GenericExtrinsic) Encode(opt *scaleType.ScaleDecoderOption) (string, er
 				}
 			}
 		}
+	} else if g.VersionInfo == "85" {
+		data = data + scaleType.Encode(utiles.TrueOrElse(opt.Metadata.MetadataVersion >= 14 && scaleType.HasReg("ExtrinsicSigner"), "ExtrinsicSigner", "AccountId"), g.Signer)
+		data = data + scaleType.Encode("ExtrinsicSignature", g.SignatureRaw)
+		data = data + scaleType.Encode("U8", g.TransactionExtensionVersion)
+		data = data + scaleType.Encode("EraExtrinsic", g.Era)
+		data = data + scaleType.Encode("Compact<U64>", g.Nonce)
+		for _, ext := range opt.Metadata.Extrinsic.SignedExtensions {
+			if enable := signedExts[ext.Identifier]; enable || utiles.SliceIndex(ext.Identifier, opt.AdditionalCheck) >= 0 {
+				if ext.Identifier == "ChargeTransactionPayment" {
+					data = data + scaleType.Encode("Compact<Balance>", g.Tip)
+				} else if ext.Identifier == "CheckNonce" {
+					data = data + scaleType.Encode("Compact<U64>", g.Nonce)
+				} else if extension, ok := g.SignedExtensions[ext.Identifier]; ok {
+					data = data + scaleType.Encode(ext.TypeString, extension)
+				}
+			}
+		}
+	} else if g.VersionInfo == "45" {
+		data = data + scaleType.Encode("U8", g.TransactionExtensionVersion)
+		for _, ext := range opt.Metadata.Extrinsic.SignedExtensions {
+			if extension, ok := g.SignedExtensions[ext.Identifier]; ok {
+				data = data + scaleType.EncodeWithOpt(ext.TypeString, extension, opt)
+			}
+		}
 	}
 
 	data = data + g.CallCode

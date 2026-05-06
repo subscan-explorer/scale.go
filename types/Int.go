@@ -38,7 +38,7 @@ func (f *IntFixed) Process() {
 func (f *IntFixed) Encode(value interface{}) string {
 	if f.FixedLength < 16 {
 		var buffer = &bytes.Buffer{}
-		err := binary.Write(buffer, binary.LittleEndian, value)
+		err := binary.Write(buffer, binary.LittleEndian, f.fixedSizeValue(value))
 		if err != nil {
 			panic(fmt.Errorf("fixed write raise err %s", err.Error()))
 		}
@@ -63,6 +63,54 @@ func (f *IntFixed) Encode(value interface{}) string {
 		panic(err)
 	} else {
 		return utiles.BytesToHex(c)
+	}
+}
+
+func (f *IntFixed) fixedSizeValue(value interface{}) interface{} {
+	var valueInt int64
+	switch v := value.(type) {
+	case int:
+		valueInt = int64(v)
+	case int8:
+		valueInt = int64(v)
+	case int16:
+		valueInt = int64(v)
+	case int32:
+		valueInt = int64(v)
+	case int64:
+		valueInt = v
+	case uint:
+		valueInt = int64(v)
+	case uint8:
+		valueInt = int64(v)
+	case uint16:
+		valueInt = int64(v)
+	case uint32:
+		valueInt = int64(v)
+	case uint64:
+		valueInt = int64(v)
+	case float64:
+		valueInt = decimal.NewFromFloat(v).IntPart()
+	case decimal.Decimal:
+		valueInt = v.IntPart()
+	case *big.Int:
+		valueInt = v.Int64()
+	case string:
+		valueInt = decimal.RequireFromString(v).IntPart()
+	default:
+		return value
+	}
+	switch f.FixedLength {
+	case 1:
+		return int8(valueInt)
+	case 2:
+		return int16(valueInt)
+	case 4:
+		return int32(valueInt)
+	case 8:
+		return valueInt
+	default:
+		return valueInt
 	}
 }
 

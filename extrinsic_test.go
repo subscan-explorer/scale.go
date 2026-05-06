@@ -96,5 +96,8 @@ func Test_ExtrinsicV5(t *testing.T) {
 		assert.Equal(t, "transfer_allow_death", extrinsic.CallModuleFunction)
 		assert.Equal(t, "00d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d0700e40b5402", extrinsic.ParamsRaw)
 		assert.Equal(t, "45", extrinsic.VersionInfo)
+		encode, err := extrinsic.Encode(&types.ScaleDecoderOption{Metadata: &m.Metadata})
+		assert.NoError(t, err)
+		assert.Equal(t, utiles.TrimHex(raw), encode)
 	})
 }

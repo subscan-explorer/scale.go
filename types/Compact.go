@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math/big"
+	"strings"
 
 	"github.com/itering/scale.go/types/scaleBytes"
 	"github.com/itering/scale.go/utiles"
@@ -45,7 +47,7 @@ func (c *Compact) Process() {
 		c.Value = c.CompactBytes
 		return
 	}
-	s := ScaleDecoder{TypeString: c.SubType, Data: scaleBytes.ScaleBytes{Data: c.CompactBytes}}
+	s := ScaleDecoder{TypeString: c.SubType, Data: scaleBytes.ScaleBytes{Data: c.compactBytesForSubType()}}
 	byteData := s.ProcessAndUpdateData(c.SubType)
 	var divValue uint64 = 1
 	if c.CompactLength <= 4 {
@@ -69,6 +71,26 @@ func (c *Compact) Process() {
 	}
 }
 
+func (c *Compact) compactBytesForSubType() []byte {
+	byteLength := 0
+	switch strings.ToLower(c.SubType) {
+	case "u16":
+		byteLength = 2
+	case "u32":
+		byteLength = 4
+	case "u64":
+		byteLength = 8
+	case "u128", "balance":
+		byteLength = 16
+	}
+	if byteLength == 0 || len(c.CompactBytes) >= byteLength {
+		return c.CompactBytes
+	}
+	compactBytes := make([]byte, byteLength)
+	copy(compactBytes, c.CompactBytes)
+	return compactBytes
+}
+
 func (c *Compact) TypeStructString() string {
 	return fmt.Sprintf("Compact<%s>", c.SubType)
 }
@@ -77,7 +99,7 @@ func (c *Compact) Encode(value interface{}) string {
 	var compactValue decimal.Decimal
 	switch v := value.(type) {
 	case uint64:
-		compactValue = decimal.New(int64(v), 0)
+		compactValue = decimal.NewFromBigInt(new(big.Int).SetUint64(v), 0)
 	case decimal.Decimal:
 		compactValue = v
 	case int64:
@@ -89,23 +111,29 @@ func (c *Compact) Encode(value interface{}) string {
 	case string:
 		compactValue = decimal.RequireFromString(v)
 	}
+	if compactValue.IsNegative() {
+		return ""
+	}
+	compactBig := compactValue.BigInt()
 	bs := make([]byte, 4)
-	if compactValue.IntPart() <= 63 {
-		binary.LittleEndian.PutUint32(bs, uint32(compactValue.IntPart()<<2))
+	if compactBig.Cmp(big.NewInt(63)) <= 0 {
+		compactUint := compactBig.Uint64()
+		binary.LittleEndian.PutUint32(bs, uint32(compactUint<<2))
 		c.Data.Data = bs[0:1]
-	} else if compactValue.IntPart() <= 16383 {
-		binary.LittleEndian.PutUint32(bs, uint32(compactValue.IntPart()<<2)|1)
+	} else if compactBig.Cmp(big.NewInt(16383)) <= 0 {
+		compactUint := compactBig.Uint64()
+		binary.LittleEndian.PutUint32(bs, uint32(compactUint<<2)|1)
 		c.Data.Data = bs[0:2]
-	} else if compactValue.IntPart() <= 1073741823 {
-		binary.LittleEndian.PutUint32(bs, uint32(compactValue.IntPart()<<2)|2)
+	} else if compactBig.Cmp(big.NewInt(1073741823)) <= 0 {
+		compactUint := compactBig.Uint64()
+		binary.LittleEndian.PutUint32(bs, uint32(compactUint<<2)|2)
 		c.Data.Data = bs
 	} else {
-		v := compactValue.BigInt()
-		numBytes := len(v.Bytes())
+		numBytes := len(compactBig.Bytes())
 		if numBytes > 255 || uint8(numBytes-4) > 63 {
 			return ""
 		}
-		buf := v.Bytes()
+		buf := compactBig.Bytes()
 		Reverse(buf)
 		c.Data.Data = append([]byte{uint8(numBytes-4)<<2 + 3}, buf...)
 	}
@@ -129,6 +157,9 @@ func (c *CompactU32) Init(data scaleBytes.ScaleBytes, option *ScaleDecoderOption
 
 func (c *CompactU32) Process() {
 	c.ProcessCompactBytes()
+	if len(c.CompactBytes) != c.CompactLength {
+		panic(fmt.Sprintf("compact<u32> underflow: need %d bytes, got %d", c.CompactLength, len(c.CompactBytes)))
+	}
 	buf := &bytes.Buffer{}
 	var reader io.Reader
 	reader = buf
@@ -147,20 +178,37 @@ func (c *CompactU32) TypeStructString() string {
 }
 
 func (c *CompactU32) Encode(value interface{}) string {
-	var i int
+	var i uint64
 	switch v := value.(type) {
 	case int:
-		i = v
+		if v < 0 {
+			return ""
+		}
+		i = uint64(v)
 	case decimal.Decimal:
-		i = int(v.IntPart())
+		if v.IsNegative() {
+			return ""
+		}
+		i = uint64(v.IntPart())
 	case uint32:
-		i = int(v)
+		i = uint64(v)
+	case uint64:
+		i = v
 	case int64:
-		i = int(v)
+		if v < 0 {
+			return ""
+		}
+		i = uint64(v)
 	case uint16:
-		i = int(v)
+		i = uint64(v)
 	case float64:
-		i = int(v)
+		if v < 0 {
+			return ""
+		}
+		i = uint64(v)
+	}
+	if i > 4294967295 {
+		return ""
 	}
 	if i <= 63 {
 		bs := make([]byte, 4)
@@ -174,6 +222,10 @@ func (c *CompactU32) Encode(value interface{}) string {
 		bs := make([]byte, 4)
 		binary.LittleEndian.PutUint32(bs, uint32(i<<2)|2)
 		c.Data.Data = bs
+	} else {
+		bs := make([]byte, 4)
+		binary.LittleEndian.PutUint32(bs, uint32(i))
+		c.Data.Data = append([]byte{3}, bs...)
 	}
 	return utiles.BytesToHex(c.Data.Data)
 }

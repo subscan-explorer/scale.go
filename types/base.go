@@ -214,6 +214,7 @@ func (s *ScaleDecoder) fastProcess(typeString string) (interface{}, bool) {
 	switch strings.ToLower(typeString) {
 	case "u8":
 		offsetStart := s.Data.Offset
+		s.requireRemainingBytes(1)
 		data := s.Data.GetNextBytes(1)
 		var value int
 		if len(data) > 0 {
@@ -223,6 +224,7 @@ func (s *ScaleDecoder) fastProcess(typeString string) (interface{}, bool) {
 		return value, true
 	case "u16":
 		offsetStart := s.Data.Offset
+		s.requireRemainingBytes(2)
 		data := s.Data.GetNextBytes(2)
 		var c [2]byte
 		copy(c[:], data)
@@ -230,6 +232,7 @@ func (s *ScaleDecoder) fastProcess(typeString string) (interface{}, bool) {
 		return binary.LittleEndian.Uint16(c[:]), true
 	case "u32":
 		offsetStart := s.Data.Offset
+		s.requireRemainingBytes(4)
 		data := s.Data.GetNextBytes(4)
 		var c [4]byte
 		copy(c[:], data)
@@ -237,6 +240,7 @@ func (s *ScaleDecoder) fastProcess(typeString string) (interface{}, bool) {
 		return binary.LittleEndian.Uint32(c[:]), true
 	case "u64":
 		offsetStart := s.Data.Offset
+		s.requireRemainingBytes(8)
 		data := s.Data.GetNextBytes(8)
 		var c [8]byte
 		copy(c[:], data)
@@ -244,12 +248,19 @@ func (s *ScaleDecoder) fastProcess(typeString string) (interface{}, bool) {
 		return binary.LittleEndian.Uint64(c[:]), true
 	case "bool":
 		offsetStart := s.Data.Offset
+		s.requireRemainingBytes(1)
 		data := s.Data.GetNextBytes(1)
 		value := len(data) > 0 && data[0] == 1
 		s.RawValue = utiles.BytesToHex(s.Data.Data[offsetStart:s.Data.Offset])
 		return value, true
 	default:
 		return nil, false
+	}
+}
+
+func (s *ScaleDecoder) requireRemainingBytes(length int) {
+	if s.Data.GetRemainingLength() < length {
+		panic(fmt.Sprintf("scale bytes underflow: need %d bytes from offset %d, only %d remaining", length, s.Data.Offset, s.Data.GetRemainingLength()))
 	}
 }
 

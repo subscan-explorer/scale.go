@@ -72,7 +72,7 @@ func TestSet_Process(t *testing.T) {
 		},
 	})
 	m := ScaleDecoder{}
-	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("0x03000000")}, nil)
+	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("0x0300000000000000")}, nil)
 	r := m.ProcessAndUpdateData("CustomSet")
 	if strings.Join(r.([]string), "") != "Value1Value2" {
 		t.Errorf("Test TestSet_Process Process fail, decode return %v", r.([]string))
@@ -104,6 +104,28 @@ func TestCompactBalance(t *testing.T) {
 	assert.Equal(t, "13000064a7b3b6e00d", Encode("Compact<Balance>", decimal.RequireFromString("1000000000000000000")))
 }
 
+func TestCompactU32EncodeLargeMode(t *testing.T) {
+	assert.Equal(t, "0300000040", Encode("Compact<u32>", uint32(1073741824)))
+	assert.Equal(t, "03ffffffff", Encode("Compact<u32>", uint32(4294967295)))
+}
+
+func TestCompactUint64DoesNotOverflow(t *testing.T) {
+	assert.Equal(t, "13ffffffffffffffff", Encode("Compact<Balance>", uint64(18446744073709551615)))
+}
+
+func TestDecodePanicsOnTruncatedInput(t *testing.T) {
+	m := ScaleDecoder{}
+	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("01")}, nil)
+	assert.Panics(t, func() {
+		m.ProcessAndUpdateData("U32")
+	})
+
+	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("020001")}, nil)
+	assert.Panics(t, func() {
+		m.ProcessAndUpdateData("Compact<u32>")
+	})
+}
+
 // 0xe52d2254c67c430a0000000000000000 Balance
 func TestBalance(t *testing.T) {
 	raw := "e52d2254c67c430a0000000000000000"
@@ -124,6 +146,7 @@ func TestInt(t *testing.T) {
 	m := ScaleDecoder{}
 	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(raw)}, nil)
 	assert.Equal(t, raw, Encode("i16", m.ProcessAndUpdateData("i16").(*big.Int).Int64()))
+	assert.Equal(t, "2a000000", Encode("i32", 42))
 }
 
 func TestBoolArray(t *testing.T) {
@@ -184,7 +207,7 @@ func TestGenericLookupSource(t *testing.T) {
 		t.Errorf("Test TestGenericLookupSource Process fail, decode return %d", r)
 	}
 	m.Init(scaleBytes.ScaleBytes{Data: []byte{0xfc, 0, 1}}, nil)
-	m.ProcessAndUpdateData("GenericLookupSource")
+	assert.Equal(t, "256", m.ProcessAndUpdateData("GenericLookupSource"))
 }
 
 func TestBTreeMap(t *testing.T) {

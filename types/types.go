@@ -449,6 +449,7 @@ type GenericLookupSource struct {
 func (g *GenericLookupSource) Process() {
 	if len(g.Data.Data) == 32 {
 		g.Value = utiles.BytesToHex(g.NextBytes(32))
+		return
 	}
 	AccountLength := g.NextBytes(1)
 	accountLength := utiles.BytesToHex(AccountLength)
@@ -469,7 +470,9 @@ func (g *GenericLookupSource) Process() {
 		return 0, 1
 	}(AccountLength)
 	e := ScaleDecoder{}
-	e.Init(scaleBytes.ScaleBytes{Data: g.Data.Data[offset : offset+length]}, nil)
+	indexBytes := make([]byte, 4)
+	copy(indexBytes, g.Data.Data[offset:offset+length])
+	e.Init(scaleBytes.ScaleBytes{Data: indexBytes}, nil)
 	g.Value = strconv.Itoa(int(e.ProcessAndUpdateData("U32").(uint32)))
 }
 
