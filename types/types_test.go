@@ -107,6 +107,10 @@ func TestCompactBalance(t *testing.T) {
 func TestCompactU32EncodeLargeMode(t *testing.T) {
 	assert.Equal(t, "0300000040", Encode("Compact<u32>", uint32(1073741824)))
 	assert.Equal(t, "03ffffffff", Encode("Compact<u32>", uint32(4294967295)))
+
+	m := ScaleDecoder{}
+	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("0300000040")}, nil)
+	assert.Equal(t, 1073741824, m.ProcessAndUpdateData("Compact<u32>"))
 }
 
 func TestCompactUint64DoesNotOverflow(t *testing.T) {
@@ -123,6 +127,11 @@ func TestDecodePanicsOnTruncatedInput(t *testing.T) {
 	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("020001")}, nil)
 	assert.Panics(t, func() {
 		m.ProcessAndUpdateData("Compact<u32>")
+	})
+
+	m.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes("13000064a7b3b6e")}, nil)
+	assert.Panics(t, func() {
+		m.ProcessAndUpdateData("Compact<Balance>")
 	})
 }
 
@@ -394,6 +403,13 @@ func TestFixedArrayEncodeInvalidInputMessage(t *testing.T) {
 func TestVecEncodeSliceTypes(t *testing.T) {
 	assert.Equal(t, "080100000002000000", Encode("Vec<u32>", []uint32{1, 2}))
 	assert.Equal(t, "080100000002000000", Encode("Vec<u32>", []int{1, 2}))
+	assert.Equal(t, "080100000002000000", Encode("Vec<u32>", []decimal.Decimal{decimal.NewFromInt(1), decimal.NewFromInt(2)}))
+}
+
+func TestOptionEncodeTypedNil(t *testing.T) {
+	var values []uint32
+	assert.Equal(t, "00", Encode("Option<Vec<u32>>", values))
+	assert.Equal(t, "0100", Encode("Option<Vec<u32>>", []uint32{}))
 }
 
 func TestU256(t *testing.T) {

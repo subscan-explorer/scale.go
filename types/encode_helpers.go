@@ -1,42 +1,31 @@
 package types
 
-func toInterfaceSlice[T any](values []T) []interface{} {
-	out := make([]interface{}, len(values))
-	for i, v := range values {
-		out[i] = v
+import "reflect"
+
+func isNilInterface(value interface{}) bool {
+	if value == nil {
+		return true
 	}
-	return out
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 func asInterfaceSlice(value interface{}) ([]interface{}, bool) {
-	switch v := value.(type) {
-	case []interface{}:
-		return v, true
-	case []string:
-		return toInterfaceSlice(v), true
-	case []int:
-		return toInterfaceSlice(v), true
-	case []int8:
-		return toInterfaceSlice(v), true
-	case []int16:
-		return toInterfaceSlice(v), true
-	case []int32:
-		return toInterfaceSlice(v), true
-	case []int64:
-		return toInterfaceSlice(v), true
-	case []uint:
-		return toInterfaceSlice(v), true
-	case []uint16:
-		return toInterfaceSlice(v), true
-	case []uint32:
-		return toInterfaceSlice(v), true
-	case []uint64:
-		return toInterfaceSlice(v), true
-	case []byte:
-		return toInterfaceSlice(v), true
-	case []bool:
-		return toInterfaceSlice(v), true
-	default:
+	if value == nil {
 		return nil, false
 	}
+	v := reflect.ValueOf(value)
+	if v.Kind() != reflect.Slice {
+		return nil, false
+	}
+	out := make([]interface{}, v.Len())
+	for i := 0; i < v.Len(); i++ {
+		out[i] = v.Index(i).Interface()
+	}
+	return out, true
 }
