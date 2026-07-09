@@ -43,6 +43,9 @@ func (c *Compact) ProcessCompactBytes() {
 
 func (c *Compact) Process() {
 	c.ProcessCompactBytes()
+	if c.CompactLength > 4 {
+		c.requireCompleteCompactBytes()
+	}
 	if c.SubType == "" {
 		c.Value = c.CompactBytes
 		return
@@ -89,6 +92,19 @@ func (c *Compact) compactBytesForSubType() []byte {
 	compactBytes := make([]byte, byteLength)
 	copy(compactBytes, c.CompactBytes)
 	return compactBytes
+}
+
+func (c *Compact) compactValueLength() int {
+	if c.CompactLength > 4 {
+		return c.CompactLength - 1
+	}
+	return c.CompactLength
+}
+
+func (c *Compact) requireCompleteCompactBytes() {
+	if expected := c.compactValueLength(); len(c.CompactBytes) != expected {
+		panic(fmt.Sprintf("compact underflow: need %d bytes, got %d", expected, len(c.CompactBytes)))
+	}
 }
 
 func (c *Compact) TypeStructString() string {
@@ -157,9 +173,7 @@ func (c *CompactU32) Init(data scaleBytes.ScaleBytes, option *ScaleDecoderOption
 
 func (c *CompactU32) Process() {
 	c.ProcessCompactBytes()
-	if len(c.CompactBytes) != c.CompactLength {
-		panic(fmt.Sprintf("compact<u32> underflow: need %d bytes, got %d", c.CompactLength, len(c.CompactBytes)))
-	}
+	c.requireCompleteCompactBytes()
 	buf := &bytes.Buffer{}
 	var reader io.Reader
 	reader = buf
