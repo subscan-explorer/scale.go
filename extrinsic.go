@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	scaleType "github.com/itering/scale.go/types"
 	"github.com/itering/scale.go/types/scaleBytes"
@@ -90,6 +91,160 @@ func (e *ExtrinsicDecoder) generateHash() string {
 	return blake2_256(extrinsicData)
 }
 
+func isFlattenableTuple(value map[string]interface{}) bool {
+	if len(value) == 0 {
+		return false
+	}
+	for index := 1; index <= len(value); index++ {
+		if _, ok := value[fmt.Sprintf("col%d", index)]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func flattenExtrinsicExtraValues(extra interface{}) []interface{} {
+	if extra == nil {
+		return nil
+	}
+	switch value := extra.(type) {
+	case map[string]interface{}:
+		if !isFlattenableTuple(value) {
+			return []interface{}{value}
+		}
+		var values []interface{}
+		for index := 1; index <= len(value); index++ {
+			values = append(values, flattenExtrinsicExtraValues(value[fmt.Sprintf("col%d", index)])...)
+		}
+		return values
+	case []interface{}:
+		var values []interface{}
+		for _, item := range value {
+			values = append(values, flattenExtrinsicExtraValues(item)...)
+		}
+		return values
+	default:
+		return []interface{}{value}
+	}
+}
+
+func signedExtensionsWithExtra(signedExtensions []scaleType.SignedExtensions) []scaleType.SignedExtensions {
+	filtered := make([]scaleType.SignedExtensions, 0, len(signedExtensions))
+	for _, ext := range signedExtensions {
+		if ext.TypeString == "NULL" {
+			continue
+		}
+		filtered = append(filtered, ext)
+	}
+	return filtered
+}
+
+func decodeSignedExtensionsFromExtra(extra interface{}, signedExtensions []scaleType.SignedExtensions) []interface{} {
+	if len(signedExtensions) == 0 {
+		return nil
+	}
+	values := flattenExtrinsicExtraValues(extra)
+	if len(values) != len(signedExtensions) {
+		return nil
+	}
+	return values
+}
+
+func extractTip(value interface{}) decimal.Decimal {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for key, item := range typed {
+			if strings.EqualFold(key, "tip") {
+				return utiles.DecimalFromInterface(item)
+			}
+		}
+	case nil:
+		return decimal.Zero
+	default:
+		return utiles.DecimalFromInterface(typed)
+	}
+	return decimal.Zero
+}
+
+func extractNonce(value interface{}) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case uint8:
+		return int(typed), true
+	case uint16:
+		return int(typed), true
+	case uint32:
+		return int(typed), true
+	case uint64:
+		return int(typed), true
+	case int8:
+		return int(typed), true
+	case int16:
+		return int(typed), true
+	case int32:
+		return int(typed), true
+	case int64:
+		return int(typed), true
+	case decimal.Decimal:
+		return int(typed.IntPart()), true
+	}
+	return 0, false
+}
+
+func encodeEraValue(value interface{}, ext scaleType.SignedExtensions, option *scaleType.ScaleDecoderOption) string {
+	if raw, ok := value.(string); ok {
+		return raw
+	}
+	return utiles.TrimHex(scaleType.EncodeWithOpt(ext.TypeString, value, option))
+}
+
+func shouldRecordSignedExtension(identifier string, value interface{}) bool {
+	switch identifier {
+	case "CheckMortality", "CheckNonce", "ChargeTransactionPayment", "ChargeAssetTxPayment":
+		return false
+	}
+	if typed, ok := value.(map[string]interface{}); ok && len(typed) == 0 {
+		return false
+	}
+	return value != nil
+}
+
+func (e *ExtrinsicDecoder) decodeExtrinsicExtra(result *GenericExtrinsic) bool {
+	if e.Metadata.MetadataVersion < 14 || !scaleType.HasReg("ExtrinsicExtra") {
+		return false
+	}
+
+	result.SignedExtensions = make(map[string]interface{})
+	extra := e.ProcessAndUpdateData("ExtrinsicExtra")
+	extensions := signedExtensionsWithExtra(e.Metadata.Extrinsic.SignedExtensions)
+	values := decodeSignedExtensionsFromExtra(extra, extensions)
+	if len(values) == 0 {
+		return true
+	}
+
+	for index, ext := range extensions {
+		if index >= len(values) {
+			break
+		}
+		value := values[index]
+		switch ext.Identifier {
+		case "CheckMortality":
+			e.Era = encodeEraValue(value, ext, &scaleType.ScaleDecoderOption{Metadata: e.Metadata, Spec: e.Spec})
+		case "CheckNonce":
+			if nonce, ok := extractNonce(value); ok {
+				e.Nonce = nonce
+			}
+		case "ChargeTransactionPayment", "ChargeAssetTxPayment":
+			result.Tip = extractTip(value)
+		}
+		if shouldRecordSignedExtension(ext.Identifier, value) {
+			result.SignedExtensions[ext.Identifier] = value
+		}
+	}
+	return true
+}
+
 type GenericExtrinsic struct {
 	VersionInfo                 string                 `json:"version_info"`
 	ExtrinsicLength             int                    `json:"extrinsic_length"`
@@ -150,9 +305,11 @@ func (e *ExtrinsicDecoder) Process() {
 					e.Signature = value.(string)
 				}
 			}
-			e.Era = e.ProcessAndUpdateData("EraExtrinsic").(string)
-			if e.Metadata.MetadataVersion < 14 || utiles.SliceIndex("CheckNonce", e.Metadata.Extrinsic.SignedIdentifier) < 0 {
-				e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
+			if !e.decodeExtrinsicExtra(&result) {
+				e.Era = e.ProcessAndUpdateData("EraExtrinsic").(string)
+				if e.Metadata.MetadataVersion < 14 || utiles.SliceIndex("CheckNonce", e.Metadata.Extrinsic.SignedIdentifier) < 0 {
+					e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
+				}
 			}
 			if e.Metadata.MetadataVersion < 14 {
 				// confirm metadata extrinsic has ChargeTransactionPayment
@@ -165,7 +322,9 @@ func (e *ExtrinsicDecoder) Process() {
 				}
 			}
 			// spec SignedExtensions
-			result.SignedExtensions = make(map[string]interface{})
+			if len(result.SignedExtensions) == 0 {
+				result.SignedExtensions = make(map[string]interface{})
+			}
 			if len(e.SignedExtensions) > 0 {
 				for _, extension := range e.SignedExtensions {
 					if utiles.SliceIndex(extension.Name, e.Metadata.Extrinsic.SignedIdentifier) != -1 {
@@ -174,17 +333,15 @@ func (e *ExtrinsicDecoder) Process() {
 						}
 					}
 				}
-			} else {
-				if e.Metadata.MetadataVersion >= 14 {
-					for _, ext := range e.Metadata.Extrinsic.SignedExtensions {
-						if enable := signedExts[ext.Identifier]; enable || utiles.SliceIndex(ext.Identifier, e.AdditionalCheck) >= 0 {
-							if ext.Identifier == "ChargeTransactionPayment" {
-								result.Tip = utiles.DecimalFromInterface(e.ProcessAndUpdateData("Compact<Balance>"))
-							} else if ext.Identifier == "CheckNonce" {
-								e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
-							} else {
-								result.SignedExtensions[ext.Identifier] = e.ProcessAndUpdateData(ext.TypeString)
-							}
+			} else if e.Metadata.MetadataVersion >= 14 && !scaleType.HasReg("ExtrinsicExtra") {
+				for _, ext := range e.Metadata.Extrinsic.SignedExtensions {
+					if enable := signedExts[ext.Identifier]; enable || utiles.SliceIndex(ext.Identifier, e.AdditionalCheck) >= 0 {
+						if ext.Identifier == "ChargeTransactionPayment" {
+							result.Tip = utiles.DecimalFromInterface(e.ProcessAndUpdateData("Compact<Balance>"))
+						} else if ext.Identifier == "CheckNonce" {
+							e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
+						} else {
+							result.SignedExtensions[ext.Identifier] = e.ProcessAndUpdateData(ext.TypeString)
 						}
 					}
 				}

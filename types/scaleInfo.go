@@ -245,6 +245,9 @@ func (s *ScaleInfo) expandComposite(id int, SiTyp SiType, id2Portable map[int]Si
 		if param := SiTyp.FindParameter("Address"); param != nil {
 			RegCustomTypes(map[string]source.TypeStruct{"ExtrinsicSigner": {Type: "string", TypeString: s.dealOneSiType(param.Type, id2Portable[param.Type], id2Portable)}})
 		}
+		if param := SiTyp.FindParameter("Extra"); param != nil {
+			RegCustomTypes(map[string]source.TypeStruct{"ExtrinsicExtra": {Type: "string", TypeString: s.dealOneSiType(param.Type, id2Portable[param.Type], id2Portable)}})
+		}
 	}
 
 	if len(SiTyp.Path) >= 2 && utiles.SliceIndex(SiTyp.Path[len(SiTyp.Path)-1], []string{"WrapperKeepOpaque", "WrapperOpaque"}) != -1 {
