@@ -45,4 +45,9 @@ func TestV14ExtrinsicDecoderAssethubPaseoSignedExtensions(t *testing.T) {
 	assert.Equal(t, "1f09", extrinsic.CallCode)
 	assert.Equal(t, "PolkadotXcm", extrinsic.CallModule)
 	assert.Equal(t, "limited_teleport_assets", extrinsic.CallModuleFunction)
+	assert.Equal(t, 9560, extrinsic.Nonce)
+	assert.Equal(t, "5502", extrinsic.Era)
+	assert.Equal(t, "0", extrinsic.Tip.String())
+	assert.Equal(t, false, extrinsic.SignedExtensions["RestrictOrigins"])
+	assert.Equal(t, "Disabled", extrinsic.SignedExtensions["CheckMetadataHash"])
 }

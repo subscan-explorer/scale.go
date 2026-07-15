@@ -105,7 +105,7 @@ func isFlattenableTuple(value map[string]interface{}) bool {
 
 func flattenExtrinsicExtraValues(extra interface{}) []interface{} {
 	if extra == nil {
-		return nil
+		return []interface{}{nil}
 	}
 	switch value := extra.(type) {
 	case map[string]interface{}:
@@ -139,15 +139,15 @@ func signedExtensionsWithExtra(signedExtensions []scaleType.SignedExtensions) []
 	return filtered
 }
 
-func decodeSignedExtensionsFromExtra(extra interface{}, signedExtensions []scaleType.SignedExtensions) []interface{} {
+func decodeSignedExtensionsFromExtra(extra interface{}, signedExtensions []scaleType.SignedExtensions) ([]interface{}, error) {
 	if len(signedExtensions) == 0 {
-		return nil
+		return nil, nil
 	}
 	values := flattenExtrinsicExtraValues(extra)
 	if len(values) != len(signedExtensions) {
-		return nil
+		return nil, fmt.Errorf("ExtrinsicExtra signed extension count mismatch: decoded %d values for %d extensions", len(values), len(signedExtensions))
 	}
-	return values
+	return values, nil
 }
 
 func extractTip(value interface{}) decimal.Decimal {
@@ -218,15 +218,12 @@ func (e *ExtrinsicDecoder) decodeExtrinsicExtra(result *GenericExtrinsic) bool {
 	result.SignedExtensions = make(map[string]interface{})
 	extra := e.ProcessAndUpdateData("ExtrinsicExtra")
 	extensions := signedExtensionsWithExtra(e.Metadata.Extrinsic.SignedExtensions)
-	values := decodeSignedExtensionsFromExtra(extra, extensions)
-	if len(values) == 0 {
-		return true
+	values, err := decodeSignedExtensionsFromExtra(extra, extensions)
+	if err != nil {
+		panic(err)
 	}
 
 	for index, ext := range extensions {
-		if index >= len(values) {
-			break
-		}
 		value := values[index]
 		switch ext.Identifier {
 		case "CheckMortality":
