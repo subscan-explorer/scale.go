@@ -199,15 +199,30 @@ func encodeEraValue(value interface{}, ext scaleType.SignedExtensions, option *s
 	return utiles.TrimHex(scaleType.EncodeWithOpt(ext.TypeString, value, option))
 }
 
-func shouldRecordSignedExtension(identifier string, value interface{}) bool {
-	switch identifier {
-	case "CheckMortality", "CheckNonce", "ChargeTransactionPayment", "ChargeAssetTxPayment":
+func hasSignedExtensionValue(value interface{}) bool {
+	if value == nil {
 		return false
 	}
 	if typed, ok := value.(map[string]interface{}); ok && len(typed) == 0 {
 		return false
 	}
-	return value != nil
+	return true
+}
+
+func shouldEncodeSignedExtension(identifier string, value interface{}) bool {
+	switch identifier {
+	case "CheckMortality", "CheckNonce", "ChargeTransactionPayment", "ChargeAssetTxPayment":
+		return false
+	}
+	return hasSignedExtensionValue(value)
+}
+
+func shouldRecordSignedExtension(identifier string, value interface{}) bool {
+	switch identifier {
+	case "CheckMortality", "CheckNonce", "ChargeTransactionPayment":
+		return false
+	}
+	return hasSignedExtensionValue(value)
 }
 
 func (e *ExtrinsicDecoder) decodeExtrinsicExtra(result *GenericExtrinsic) bool {
@@ -471,11 +486,9 @@ func (g *GenericExtrinsic) Encode(opt *scaleType.ScaleDecoderOption) (string, er
 		if len(opt.Metadata.Extrinsic.SignedIdentifier) > 0 && utiles.SliceIndex("ChargeTransactionPayment", opt.Metadata.Extrinsic.SignedIdentifier) > -1 {
 			data = data + scaleType.Encode("Compact<Balance>", g.Tip) // tip
 		}
-		for identifier, extension := range g.SignedExtensions {
-			for _, ext := range opt.Metadata.Extrinsic.SignedExtensions {
-				if ext.Identifier == identifier {
-					data = data + scaleType.Encode(ext.TypeString, extension)
-				}
+		for _, ext := range opt.Metadata.Extrinsic.SignedExtensions {
+			if extension, ok := g.SignedExtensions[ext.Identifier]; ok && shouldEncodeSignedExtension(ext.Identifier, extension) {
+				data = data + scaleType.Encode(ext.TypeString, extension)
 			}
 		}
 	} else if g.VersionInfo == "85" {

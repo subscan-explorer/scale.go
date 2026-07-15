@@ -48,6 +48,13 @@ func TestV14ExtrinsicDecoderAssethubPaseoSignedExtensions(t *testing.T) {
 	assert.Equal(t, 9560, extrinsic.Nonce)
 	assert.Equal(t, "5502", extrinsic.Era)
 	assert.Equal(t, "0", extrinsic.Tip.String())
+	assert.Len(t, extrinsic.SignedExtensions, 3)
+	assert.NotContains(t, extrinsic.SignedExtensions, "AuthorizeValueTransfer")
+	assert.NotContains(t, extrinsic.SignedExtensions, "AuthorizeCall")
+	assert.NotContains(t, extrinsic.SignedExtensions, "CheckSpecVersion")
+	assert.NotContains(t, extrinsic.SignedExtensions, "CheckMortality")
+	assert.NotContains(t, extrinsic.SignedExtensions, "CheckNonce")
 	assert.Equal(t, false, extrinsic.SignedExtensions["RestrictOrigins"])
+	assert.Contains(t, extrinsic.SignedExtensions, "ChargeAssetTxPayment")
 	assert.Equal(t, "Disabled", extrinsic.SignedExtensions["CheckMetadataHash"])
 }
