@@ -91,43 +91,6 @@ func (e *ExtrinsicDecoder) generateHash() string {
 	return blake2_256(extrinsicData)
 }
 
-func isFlattenableTuple(value map[string]interface{}) bool {
-	if len(value) == 0 {
-		return false
-	}
-	for index := 1; index <= len(value); index++ {
-		if _, ok := value[fmt.Sprintf("col%d", index)]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func flattenExtrinsicExtraValues(extra interface{}) []interface{} {
-	if extra == nil {
-		return []interface{}{nil}
-	}
-	switch value := extra.(type) {
-	case map[string]interface{}:
-		if !isFlattenableTuple(value) {
-			return []interface{}{value}
-		}
-		var values []interface{}
-		for index := 1; index <= len(value); index++ {
-			values = append(values, flattenExtrinsicExtraValues(value[fmt.Sprintf("col%d", index)])...)
-		}
-		return values
-	case []interface{}:
-		var values []interface{}
-		for _, item := range value {
-			values = append(values, flattenExtrinsicExtraValues(item)...)
-		}
-		return values
-	default:
-		return []interface{}{value}
-	}
-}
-
 func signedExtensionsWithExtra(signedExtensions []scaleType.SignedExtensions) []scaleType.SignedExtensions {
 	filtered := make([]scaleType.SignedExtensions, 0, len(signedExtensions))
 	for _, ext := range signedExtensions {
@@ -137,17 +100,6 @@ func signedExtensionsWithExtra(signedExtensions []scaleType.SignedExtensions) []
 		filtered = append(filtered, ext)
 	}
 	return filtered
-}
-
-func decodeSignedExtensionsFromExtra(extra interface{}, signedExtensions []scaleType.SignedExtensions) ([]interface{}, error) {
-	if len(signedExtensions) == 0 {
-		return nil, nil
-	}
-	values := flattenExtrinsicExtraValues(extra)
-	if len(values) != len(signedExtensions) {
-		return nil, fmt.Errorf("ExtrinsicExtra signed extension count mismatch: decoded %d values for %d extensions", len(values), len(signedExtensions))
-	}
-	return values, nil
 }
 
 func extractTip(value interface{}) decimal.Decimal {
@@ -225,21 +177,17 @@ func shouldRecordSignedExtension(identifier string, value interface{}) bool {
 	return hasSignedExtensionValue(value)
 }
 
+// Metadata v14 describes each byte-bearing signed extension separately. Decode
+// those types directly instead of relying on a process-global Extra tuple.
 func (e *ExtrinsicDecoder) decodeExtrinsicExtra(result *GenericExtrinsic) bool {
-	if e.Metadata.MetadataVersion < 14 || !scaleType.HasReg("ExtrinsicExtra") {
+	if e.Metadata.MetadataVersion < 14 || e.Metadata.Extrinsic == nil {
 		return false
 	}
 
 	result.SignedExtensions = make(map[string]interface{})
-	extra := e.ProcessAndUpdateData("ExtrinsicExtra")
 	extensions := signedExtensionsWithExtra(e.Metadata.Extrinsic.SignedExtensions)
-	values, err := decodeSignedExtensionsFromExtra(extra, extensions)
-	if err != nil {
-		panic(err)
-	}
-
-	for index, ext := range extensions {
-		value := values[index]
+	for _, ext := range extensions {
+		value := e.ProcessAndUpdateData(ext.TypeString)
 		switch ext.Identifier {
 		case "CheckMortality":
 			e.Era = encodeEraValue(value, ext, &scaleType.ScaleDecoderOption{Metadata: e.Metadata, Spec: e.Spec})
@@ -294,6 +242,7 @@ func (e *ExtrinsicDecoder) Process() {
 		VersionInfo:     e.VersionInfo,
 	}
 	if e.VersionInfo == "04" || e.VersionInfo == "84" {
+		decodedExtrinsicExtra := false
 		if e.ContainsTransaction {
 			// Address
 			result.Signer = e.ProcessAndUpdateData(utiles.TrueOrElse(e.Metadata.MetadataVersion >= 14 && scaleType.HasReg("ExtrinsicSigner"), "ExtrinsicSigner", "Address"))
@@ -317,7 +266,8 @@ func (e *ExtrinsicDecoder) Process() {
 					e.Signature = value.(string)
 				}
 			}
-			if !e.decodeExtrinsicExtra(&result) {
+			decodedExtrinsicExtra = e.decodeExtrinsicExtra(&result)
+			if !decodedExtrinsicExtra {
 				e.Era = e.ProcessAndUpdateData("EraExtrinsic").(string)
 				if e.Metadata.MetadataVersion < 14 || utiles.SliceIndex("CheckNonce", e.Metadata.Extrinsic.SignedIdentifier) < 0 {
 					e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
@@ -345,7 +295,7 @@ func (e *ExtrinsicDecoder) Process() {
 						}
 					}
 				}
-			} else if e.Metadata.MetadataVersion >= 14 && !scaleType.HasReg("ExtrinsicExtra") {
+			} else if e.Metadata.MetadataVersion >= 14 && !decodedExtrinsicExtra && !scaleType.HasReg("ExtrinsicExtra") {
 				for _, ext := range e.Metadata.Extrinsic.SignedExtensions {
 					if enable := signedExts[ext.Identifier]; enable || utiles.SliceIndex(ext.Identifier, e.AdditionalCheck) >= 0 {
 						if ext.Identifier == "ChargeTransactionPayment" {
