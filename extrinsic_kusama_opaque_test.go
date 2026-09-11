@@ -48,6 +48,7 @@ func TestKusamaOpaqueHistoricalBlocks(t *testing.T) {
 		Height, Spec    int
 		MetadataVersion int `json:"metadata_version"`
 		Extrinsics      []struct {
+			Opaque       bool
 			Raw          string
 			ExpectedCall string `json:"expected_call"`
 			Params       json.RawMessage
@@ -76,6 +77,15 @@ func TestKusamaOpaqueHistoricalBlocks(t *testing.T) {
 					require.Equal(t, len(input), e.Data.Offset)
 					v := e.Value.(*scale.GenericExtrinsic)
 					require.Equal(t, x.ExpectedCall, v.CallModule+"."+v.CallModuleFunction)
+					if x.Opaque {
+						box := types.BoxCall{CallIndex: v.CallCode}
+						for _, param := range v.Params {
+							box.Params = append(box.Params, types.ExtrinsicParam{Name: param.Name, Type: param.Type, Value: param.Value})
+						}
+						require.Equal(t, utiles.TrimHex(v.CallCode)+utiles.TrimHex(v.ParamsRaw), types.EncodeWithOpt("Call", box, &opt), "re-encode the exact outer call including opaque nested arguments")
+
+					}
+
 					got, err := json.Marshal(v.Params)
 					require.NoError(t, err)
 					var gotValue, wantValue interface{}

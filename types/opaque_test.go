@@ -95,3 +95,21 @@ func TestWrapperOpaqueZeroSizedType(t *testing.T) {
 	require.Nil(t, e.ProcessAndUpdateData("WrapperOpaque<Null>"))
 	require.Equal(t, true, e.ProcessAndUpdateData("Bool"))
 }
+
+func TestOpaqueEncodingRoundTrip(t *testing.T) {
+	for _, typ := range []string{"OpaqueCall", "WrapperOpaque<Call>"} {
+		for _, raw := range []string{"00", "086902", "1000000102", "1c000078563412ff", "18000078563412", "084142", "4000010000785634120807060504030201"} {
+			t.Run(typ+"/"+raw, func(t *testing.T) {
+				opt := &ScaleDecoderOption{Metadata: opaqueTestMetadata()}
+				d := ScaleDecoder{}
+				d.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(raw)}, opt)
+				value := d.ProcessAndUpdateData(typ)
+				require.Equal(t, raw, EncodeWithOpt(typ, value, opt))
+			})
+		}
+		for _, raw := range []string{"0x0", "0xzz"} {
+			require.Panics(t, func() { EncodeWithOpt(typ, raw, &ScaleDecoderOption{Metadata: opaqueTestMetadata()}) })
+		}
+	}
+	require.Equal(t, "1078563412", Encode("WrapperOpaque<U32>", uint32(0x12345678)))
+}

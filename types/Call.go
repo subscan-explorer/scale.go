@@ -48,9 +48,20 @@ func (s *Call) Encode(value interface{}) string {
 	case BoxCall:
 		boxCall = v
 	case map[string]interface{}:
-		b, _ := json.Marshal(v)
-		if err := json.Unmarshal(b, &boxCall); err != nil {
-			panic("input value is not valid boxCall")
+		// Call.Process already supplies typed parameters. A JSON round trip
+		// would convert nested u64 values to float64 and corrupt call hashes.
+		params, typed := v["params"].([]ExtrinsicParam)
+		index, indexed := v["call_index"].(string)
+		if typed && indexed {
+			boxCall = BoxCall{CallIndex: index, Params: params}
+		} else {
+			b, err := json.Marshal(v)
+			if err != nil {
+				panic(fmt.Errorf("marshal boxCall: %w", err))
+			}
+			if err := json.Unmarshal(b, &boxCall); err != nil {
+				panic(fmt.Errorf("input value is not valid boxCall: %w", err))
+			}
 		}
 	default:
 		panic("input value is not valid boxCall")

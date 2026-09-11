@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math"
 	"strconv"
@@ -439,6 +440,12 @@ func (f *OpaqueCall) Process() {
 	f.processOpaque("Call")
 }
 
+// Encode preserves opaque hex payloads or encodes an expanded call with its
+// length prefix, allowing decoded multisig arguments to be re-encoded.
+func (f *OpaqueCall) Encode(value interface{}) string {
+	return f.encodeOpaque("Call", value)
+}
+
 type GenericLookupSource struct {
 	ScaleDecoder
 }
@@ -486,6 +493,24 @@ type WrapperOpaque struct{ ScaleDecoder }
 // Process decodes the inner value without reading beyond the opaque envelope.
 func (w *WrapperOpaque) Process() {
 	w.processOpaque(w.SubType)
+}
+
+// Encode wraps raw opaque hex or an expanded inner value in its byte length.
+func (w *WrapperOpaque) Encode(value interface{}) string {
+	return w.encodeOpaque(w.SubType, value)
+}
+
+func (s *ScaleDecoder) encodeOpaque(subType string, value interface{}) string {
+	var payload string
+	if raw, ok := value.(string); ok && (strings.HasPrefix(raw, "0x") || raw == "" && subType == "Call") {
+		payload = strings.TrimPrefix(raw, "0x")
+		if _, err := hex.DecodeString(payload); err != nil {
+			panic(fmt.Errorf("encode opaque payload: %w", err))
+		}
+	} else {
+		payload = EncodeWithOpt(subType, value, &ScaleDecoderOption{Metadata: s.Metadata, Spec: s.Spec, Module: s.Module})
+	}
+	return Encode("Compact<u32>", len(payload)/2) + payload
 }
 
 func (s *ScaleDecoder) processOpaque(subType string) {
