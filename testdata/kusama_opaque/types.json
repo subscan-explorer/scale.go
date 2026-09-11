@@ -1,0 +1,306 @@
+{
+  "ElectionResult#0-2029": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "electedStashes",
+        "Vec<AccountId>"
+      ],
+      [
+        "exposures",
+        "Vec<(AccountId, Exposure)>"
+      ]
+    ]
+  },
+  "Keys": "SessionKeysPolkadot",
+  "RoundSnapshot": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "voters",
+        "Vec<(AccountId, VoteWeight, Vec<AccountId>)>"
+      ],
+      [
+        "targets",
+        "Vec<AccountId>"
+      ]
+    ]
+  },
+  "VoteWeight": "u64",
+  "ValidatorPrefs": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "Commission",
+        "Compact<Balance>"
+      ]
+    ]
+  },
+  "EraPoints": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "total",
+        "Points"
+      ],
+      [
+        "individual",
+        "Vec<Points>"
+      ]
+    ]
+  },
+  "BalanceLock<Balance, BlockNumber>#1019-1045": "BalanceLock",
+  "Timepoint": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "height",
+        "BlockNumber"
+      ],
+      [
+        "index",
+        "u32"
+      ]
+    ]
+  },
+  "Multisig": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "when",
+        "Timepoint"
+      ],
+      [
+        "deposit",
+        "Balance"
+      ],
+      [
+        "depositor",
+        "AccountId"
+      ],
+      [
+        "approvals",
+        "Vec<AccountId>"
+      ]
+    ]
+  },
+  "BalanceLock<Balance>": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "id",
+        "LockIdentifier"
+      ],
+      [
+        "amount",
+        "Balance"
+      ],
+      [
+        "reasons",
+        "Reasons"
+      ]
+    ]
+  },
+  "ReferendumInfo<BlockNumber, Hash>": {
+    "type": "enum",
+    "type_mapping": [
+      [
+        "Ongoing",
+        "ReferendumStatus"
+      ],
+      [
+        "Finished",
+        "ReferendumInfoFinished"
+      ]
+    ]
+  },
+  "DispatchResult": {
+    "type": "enum",
+    "type_mapping": [
+      [
+        "Ok",
+        "Null"
+      ],
+      [
+        "Error",
+        "DispatchError"
+      ]
+    ]
+  },
+  "Heartbeat": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "blockNumber",
+        "BlockNumber"
+      ],
+      [
+        "networkState",
+        "OpaqueNetworkState"
+      ],
+      [
+        "sessionIndex",
+        "SessionIndex"
+      ],
+      [
+        "authorityIndex",
+        "AuthIndex"
+      ]
+    ]
+  },
+  "Weight#1058-?": "u64",
+  "Heartbeat#1062-?": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "blockNumber",
+        "BlockNumber"
+      ],
+      [
+        "networkState",
+        "OpaqueNetworkState"
+      ],
+      [
+        "sessionIndex",
+        "SessionIndex"
+      ],
+      [
+        "authorityIndex",
+        "AuthIndex"
+      ],
+      [
+        "validatorsLen",
+        "u32"
+      ]
+    ]
+  },
+  "ReferendumInfo<BlockNumber, Hash, BalanceOf>": {
+    "type": "enum",
+    "type_mapping": [
+      [
+        "Ongoing",
+        "ReferendumStatus"
+      ],
+      [
+        "Finished",
+        "ReferendumInfoFinished"
+      ]
+    ]
+  },
+  "DispatchInfo#1019-1061": "DispatchInfo258",
+  "DispatchInfo#1062-?": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "weight",
+        "Weight"
+      ],
+      [
+        "class",
+        "DispatchClass"
+      ],
+      [
+        "paysFee",
+        "Pays"
+      ]
+    ]
+  },
+  "ReferendumInfo#1019-1054": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "end",
+        "BlockNumber"
+      ],
+      [
+        "proposal",
+        "Proposal"
+      ],
+      [
+        "threshold",
+        "VoteThreshold"
+      ],
+      [
+        "delay",
+        "BlockNumber"
+      ]
+    ]
+  },
+  "DispatchError#1019-1031": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "module",
+        "Option<u8>"
+      ],
+      [
+        "error",
+        "u8"
+      ]
+    ]
+  },
+  "ProxyType": {
+    "type": "enum",
+    "value_list": [
+      "Any",
+      "NonTransfer",
+      "Governance",
+      "Staking",
+      "IdentityJudgement",
+      "CancelProxy",
+      "Auction"
+    ]
+  },
+  "Address#1050-2027": "AccountId",
+  "Box<Proposal>": "BoxProposal",
+  "CompactAssignments#2023-9000": "CompactAssignmentsLatest",
+  "RefCount": "u32",
+  "Box<<T as Config>::Call>": "Call",
+  "Box<<T as Config<I>>::Proposal>": "Proposal",
+  "Address#2028-?": "MultiAddress",
+  "LookupSource#2028-?": "MultiAddress",
+  "Keys#2028-2029": {
+    "type": "struct",
+    "type_mapping": [
+      [
+        "grandpa",
+        "AccountId"
+      ],
+      [
+        "babe",
+        "AccountId"
+      ],
+      [
+        "im_online",
+        "AccountId"
+      ],
+      [
+        "para_validator",
+        "AccountId"
+      ],
+      [
+        "para_assignment",
+        "AccountId"
+      ],
+      [
+        "authority_discovery",
+        "AccountId"
+      ]
+    ]
+  },
+  "ValidatorPrefs#2028-?": "ValidatorPrefsWithBlocked",
+  "Keys#2030-?": "SessionKeys6",
+  "CompactAssignments#9010-?": "CompactAssignmentsWith24",
+  "AssetInstance#9010-9090": "AssetInstanceV0",
+  "MultiAsset#9010-9090": "MultiAssetV0",
+  "Xcm#9010-9090": "XcmV0",
+  "XcmOrder#9010-9090": "XcmOrderV0",
+  "AssetInstance#9100-9100": "AssetInstanceV1",
+  "MultiAsset#9100-9100": "MultiAssetV1",
+  "Xcm#9100-9100": "XcmV1",
+  "XcmOrder#9100-9100": "XcmOrderV1",
+  "MultiLocation#9100-9100": "MultiLocationV1",
+  "AccountInfo#2030-?": "AccountInfoWithTripleRefCount",
+  "AccountInfo#2028-2029": "AccountInfoWithProviders",
+  "RefCount#0-2024": "U8"
+}

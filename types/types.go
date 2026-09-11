@@ -428,18 +428,15 @@ func (d *Data) Encode(value interface{}) string {
 
 type VoteOutcome struct{ H256 }
 
+// OpaqueCall decodes a length-delimited call, retaining its bytes when the
+// payload cannot be interpreted with the current runtime's call metadata.
 type OpaqueCall struct {
 	Bytes
 }
 
+// Process expands a valid call or retains its original opaque bytes.
 func (f *OpaqueCall) Process() {
-	f.Bytes.Process()
-	e := ScaleDecoder{}
-	option := ScaleDecoderOption{Metadata: f.Metadata, Spec: f.Spec}
-	e.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(f.Value.(string))}, &option)
-	value := e.ProcessAndUpdateData("Call")
-	f.InternalCall = append(f.InternalCall, e.InternalCall...)
-	f.Value = value
+	f.processOpaque("Call")
 }
 
 type GenericLookupSource struct {
@@ -482,11 +479,46 @@ func (b *Box) Process() {
 	b.Value = b.ProcessAndUpdateData(b.SubType)
 }
 
+// WrapperOpaque confines optional inner decoding to the declared byte length.
+// Undecodable payloads remain hex strings, including "0x" for empty payloads.
 type WrapperOpaque struct{ ScaleDecoder }
 
+// Process decodes the inner value without reading beyond the opaque envelope.
 func (w *WrapperOpaque) Process() {
-	w.ProcessAndUpdateData("Compact<u32>")
-	w.Value = w.ProcessAndUpdateData(w.SubType)
+	w.processOpaque(w.SubType)
+}
+
+func (s *ScaleDecoder) processOpaque(subType string) {
+	s.requireRemainingBytes(1)
+	if prefix := s.Data.Data[s.Data.Offset]; prefix&3 == 3 && prefix>>2 != 0 {
+		panic("opaque payload length exceeds u32")
+	}
+	length := s.ProcessAndUpdateData("Compact<u32>").(int)
+	if length < 0 || uint64(length) > uint64(^uint32(0)) {
+		panic("opaque payload length exceeds u32")
+	}
+	// Envelope corruption remains a decode error. Only inner interpretation is
+	// optional; it must never consume fields following this byte vector.
+	s.requireRemainingBytes(length)
+	payload := s.NextBytes(length)
+	raw := "0x" + utiles.BytesToHex(payload)
+	s.Value = raw
+	defer func() {
+		if recover() != nil {
+			// Opaque bytes need not encode a valid call (e.g. a stored multisig
+			// approval). Preserve them rather than losing the outer extrinsic.
+			s.Value = raw
+		}
+	}()
+	inner := ScaleDecoder{}
+	option := ScaleDecoderOption{Metadata: s.Metadata, Spec: s.Spec, Module: s.Module}
+	inner.Init(scaleBytes.ScaleBytes{Data: payload}, &option)
+	value := inner.ProcessAndUpdateData(subType)
+	if inner.Data.Offset != len(payload) {
+		return
+	}
+	s.Value = value
+	s.InternalCall = append(s.InternalCall, inner.InternalCall...)
 }
 
 type Range struct{ ScaleDecoder }
