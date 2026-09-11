@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/huandu/xstrings"
 	"github.com/itering/scale.go/types/convert"
@@ -157,6 +158,42 @@ type ExtrinsicMetadata struct {
 	SignedIdentifier               []string                         `json:"signed_identifier"`
 	TransactionExtensionsByVersion []TransactionExtensionsByVersion `json:"transaction_extensions_by_version,omitempty"`
 	TransactionExtensions          []TransactionExtensionMetadata   `json:"transaction_extensions,omitempty"`
+}
+
+// ExtensionsForVersion returns the wire-ordered extensions for one transaction
+// extension version. Older metadata only describes version zero; guessing a
+// newer layout would interpret signatures and calls as unrelated field types.
+func (m *ExtrinsicMetadata) ExtensionsForVersion(version int) ([]SignedExtensions, error) {
+	if version < 0 || version > 255 {
+		return nil, fmt.Errorf("transaction extension version %d is outside the byte range", version)
+	}
+	if m == nil {
+		return nil, fmt.Errorf("missing extrinsic metadata for extension version %d", version)
+	}
+	if len(m.TransactionExtensionsByVersion) == 0 && len(m.TransactionExtensions) == 0 && m.Versions == "" {
+		if version == 0 {
+			return m.SignedExtensions, nil
+		}
+		return nil, fmt.Errorf("transaction extension version %d requires versioned metadata", version)
+	}
+	for _, layout := range m.TransactionExtensionsByVersion {
+		if layout.Version != version {
+			continue
+		}
+		extensions := make([]SignedExtensions, 0, len(layout.Extensions))
+		for _, index := range layout.Extensions {
+			if index < 0 || index >= len(m.TransactionExtensions) {
+				return nil, fmt.Errorf("transaction extension version %d references invalid extension index %d (catalog size %d)", version, index, len(m.TransactionExtensions))
+			}
+			ext := m.TransactionExtensions[index]
+			if ext.TypeString == "" {
+				return nil, fmt.Errorf("transaction extension version %d: unresolved type %d for %s", version, ext.Type, ext.Identifier)
+			}
+			extensions = append(extensions, SignedExtensions{Identifier: ext.Identifier, Type: ext.Type, TypeString: ext.TypeString, AdditionalSigned: ext.Implicit})
+		}
+		return extensions, nil
+	}
+	return nil, fmt.Errorf("unsupported transaction extension version %d", version)
 }
 
 type DeprecationInfo struct {

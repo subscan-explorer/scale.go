@@ -72,16 +72,8 @@ func blake2_256(data []byte) string {
 
 func (e *ExtrinsicDecoder) generateHash() string {
 	var extrinsicData []byte
-	if e.VersionInfo == "45" && !e.ContainsTransaction {
-		// 69 denotes 0b0100_0101 which is the version and preamble for this Extrinsic
-		// General transactions: (extrinsic_encoded_len, 0b0100_0101, extension_version_byte, extensions, call)
-		// for version 45, will add version info as a prefix and add extrinsic length
-		// https://github.com/polkadot-fellows/RFCs/pull/124
-		extrinsicLengthType := scaleType.CompactU32{}
-		extrinsicData = append([]byte{0x45}, e.Data.Data...) // add version info
-		extrinsicLengthType.Encode(len(extrinsicData))
-		extrinsicData = append(extrinsicLengthType.Data.Data[:], extrinsicData...)
-	} else if e.ExtrinsicLength > 0 {
+	// Data includes the preamble for every format, including general V5.
+	if e.ExtrinsicLength > 0 {
 		extrinsicData = e.Data.Data
 	} else {
 		extrinsicLengthType := scaleType.CompactU32{}
@@ -203,6 +195,56 @@ func (e *ExtrinsicDecoder) decodeExtrinsicExtra(result *GenericExtrinsic) bool {
 		}
 	}
 	return true
+}
+
+// General extrinsics carry authorization inside the extension pipeline rather
+// than a signed preamble. Preserve every extension for lossless re-encoding and
+// expose the common fields to callers that index accounts and transaction fees.
+func (e *ExtrinsicDecoder) decodeGeneralExtensions(result *GenericExtrinsic) {
+	extensions, err := e.Metadata.Extrinsic.ExtensionsForVersion(result.TransactionExtensionVersion)
+	if err != nil {
+		panic(fmt.Errorf("decode general extrinsic: %w", err))
+	}
+	result.SignedExtensions = make(map[string]interface{}, len(extensions))
+	for _, ext := range extensions {
+		start := e.Data.Offset
+		value := e.ProcessAndUpdateData(ext.TypeString)
+		result.SignedExtensions[ext.Identifier] = value
+		switch ext.Identifier {
+		case "CheckMortality":
+			result.Era = utiles.BytesToHex(e.Data.Data[start:e.Data.Offset])
+			e.Era = result.Era
+		case "CheckNonce":
+			if nonce, ok := extractNonce(value); ok {
+				result.Nonce = nonce
+				e.Nonce = nonce
+			}
+		case "ChargeTransactionPayment", "ChargeAssetTxPayment":
+			result.Tip = extractTip(value)
+		case "VerifyMultiSignature":
+			variants, ok := value.(map[string]interface{})
+			if !ok {
+				continue // Disabled authorization has no account or signature.
+			}
+			signed, ok := variants["Signed"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			result.AccountId = signed["account"]
+			e.Address = result.AccountId
+			result.Signer = signed["account"]
+			result.AddressType = "AccountId"
+			result.SignatureRaw = signed["signature"]
+			if signature, ok := result.SignatureRaw.(map[string]interface{}); ok {
+				for _, raw := range signature {
+					if text, ok := raw.(string); ok {
+						result.Signature = text
+						e.Signature = text
+					}
+				}
+			}
+		}
+	}
 }
 
 type GenericExtrinsic struct {
@@ -357,14 +399,7 @@ func (e *ExtrinsicDecoder) Process() {
 	} else if e.VersionInfo == "45" {
 		e.ExtrinsicHash = e.generateHash()
 		result.TransactionExtensionVersion = e.ProcessAndUpdateData("U8").(int)
-		result.SignedExtensions = make(map[string]interface{})
-		for _, ext := range e.Metadata.Extrinsic.SignedExtensions {
-			extValue := e.ProcessAndUpdateData(ext.TypeString)
-			if v, ok := extValue.(map[string]interface{}); ok && len(v) == 0 {
-				continue
-			}
-			result.SignedExtensions[ext.Identifier] = extValue
-		}
+		e.decodeGeneralExtensions(&result)
 		e.CallIndex = utiles.BytesToHex(e.NextBytes(2))
 	} else {
 		panic(fmt.Sprintf("Extrinsics version %s is not support", e.VersionInfo))
@@ -459,10 +494,16 @@ func (g *GenericExtrinsic) Encode(opt *scaleType.ScaleDecoderOption) (string, er
 			}
 		}
 	} else if g.VersionInfo == "45" {
+		extensions, err := opt.Metadata.Extrinsic.ExtensionsForVersion(g.TransactionExtensionVersion)
+		if err != nil {
+			return "", fmt.Errorf("encode general extrinsic: %w", err)
+		}
 		data = data + scaleType.Encode("U8", g.TransactionExtensionVersion)
-		for _, ext := range opt.Metadata.Extrinsic.SignedExtensions {
+		for _, ext := range extensions {
 			if extension, ok := g.SignedExtensions[ext.Identifier]; ok {
 				data = data + scaleType.EncodeWithOpt(ext.TypeString, extension, opt)
+			} else if ext.TypeString != "NULL" {
+				return "", fmt.Errorf("encode general extrinsic: missing extension %s", ext.Identifier)
 			}
 		}
 	}

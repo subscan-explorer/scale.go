@@ -173,13 +173,26 @@ func (m *MetadataV16Decoder) Process() {
 	result.Metadata.Modules = modulesType
 	result.Extrinsic = decodeExtrinsicMetadataV16(&m.ScaleDecoder)
 
-	for index, extension := range result.Extrinsic.SignedExtensions {
-		result.Extrinsic.SignedExtensions[index].TypeString = metadataSiType[extension.Type]
-		result.Extrinsic.SignedIdentifier = append(result.Extrinsic.SignedIdentifier, extension.Identifier)
-	}
 	for index, extension := range result.Extrinsic.TransactionExtensions {
 		result.Extrinsic.TransactionExtensions[index].TypeString = metadataSiType[extension.Type]
 		result.Extrinsic.TransactionExtensions[index].ImplicitString = metadataSiType[extension.Implicit]
+	}
+	// The complete extension catalog can contain mutually exclusive layouts.
+	// Legacy signed extrinsics always use the version-zero subset.
+	result.Extrinsic.SignedExtensions = nil
+	result.Extrinsic.SignedIdentifier = nil
+	for _, layout := range result.Extrinsic.TransactionExtensionsByVersion {
+		if layout.Version == 0 {
+			extensions, err := result.Extrinsic.ExtensionsForVersion(0)
+			if err != nil {
+				panic(fmt.Errorf("decode metadata v16 signed extensions: %w", err))
+			}
+			result.Extrinsic.SignedExtensions = extensions
+			for _, extension := range extensions {
+				result.Extrinsic.SignedIdentifier = append(result.Extrinsic.SignedIdentifier, extension.Identifier)
+			}
+			break
+		}
 	}
 
 	registerOriginCaller(originCallers)
@@ -293,7 +306,7 @@ func (m *MetadataV16Module) Process() {
 	viewFunctionCount := m.ProcessAndUpdateData("Compact<u32>").(int)
 	for i := 0; i < viewFunctionCount; i++ {
 		viewFunction := PalletViewFunctionMetadata{
-			ID:   m.ProcessAndUpdateData("[u8; 8]").(string),
+			ID:   m.ProcessAndUpdateData("[u8; 32]").(string),
 			Name: m.ProcessAndUpdateData("Text").(string),
 		}
 		inputCount := m.ProcessAndUpdateData("Compact<u32>").(int)
@@ -340,11 +353,6 @@ func decodeExtrinsicMetadataV16(m *ScaleDecoder) *ExtrinsicMetadata {
 			Implicit:   m.ProcessAndUpdateData("SiLookupTypeId").(int),
 		}
 		result.TransactionExtensions = append(result.TransactionExtensions, txExtension)
-		result.SignedExtensions = append(result.SignedExtensions, SignedExtensions{
-			Identifier:       txExtension.Identifier,
-			Type:             txExtension.Type,
-			AdditionalSigned: txExtension.Implicit,
-		})
 	}
 	return result
 }

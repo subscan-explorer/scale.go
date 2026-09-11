@@ -12,6 +12,21 @@ Scale Codec written by golang, reference from [polkascan/py-scale-codec](https:/
 - [x] Custom type reg
 - [x] Reg special version type
 
+### Versioned transaction extensions
+
+V5 general extrinsics (`0x45`) select their extension layout from V16 metadata
+using `transaction_extension_version`. Decoding exposes the account and signature
+from `VerifyMultiSignature`, along with nonce, era, tip, and the transaction hash.
+The extension values are retained for byte-for-byte re-encoding, including `None`
+options. V4 signed extrinsics use the version-zero layout.
+
+Supply V16 metadata from the matching runtime when decoding a nonzero extension
+version. V14/V15 metadata only describes version zero; unsupported versions and
+invalid extension indexes fail explicitly instead of attempting the wrong layout.
+As with other invalid SCALE input, `ExtrinsicDecoder.Process` reports decode
+failures by panicking; `GenericExtrinsic.Encode` returns an error for missing or
+unsupported extension layouts. V16 view function IDs are decoded as 32 bytes.
+
 ## Installation
 
 ```bash
