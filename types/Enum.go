@@ -69,6 +69,9 @@ func (e *Enum) Process() {
 			return
 		}
 	}
+	if e.Index >= len(e.ValueList) {
+		panic(fmt.Errorf("enum %s index out of range [%d] with value list length %d", e.TypeName, e.Index, len(e.ValueList)))
+	}
 	if e.ValueList[e.Index] != "" {
 		e.Value = e.ValueList[e.Index]
 	}
