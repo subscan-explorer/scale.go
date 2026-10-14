@@ -254,9 +254,9 @@ type GenericExtrinsic struct {
 	Tip                         decimal.Decimal        `json:"tip"`
 	SignedExtensions            map[string]interface{} `json:"signed_extensions"`
 	AccountId                   interface{}            `json:"account_id"`
-	Signer                      interface{}            `json:"signer"` // map[string]interface or string
-	Signature                   string                 `json:"signature"`
-	SignatureRaw                interface{}            `json:"signature_raw"` // map[string]interface or string
+	Signer                      interface{}            `json:"signer"`        // map[string]interface or string
+	Signature                   string                 `json:"signature"`     // Legacy string/enum payload, or full composite SCALE hex without 0x.
+	SignatureRaw                interface{}            `json:"signature_raw"` // Original metadata-decoded value, retained for encoding.
 	Nonce                       int                    `json:"nonce"`
 	Era                         string                 `json:"era"`
 	ExtrinsicHash               string                 `json:"extrinsic_hash"`
@@ -266,6 +266,34 @@ type GenericExtrinsic struct {
 	Params                      []ExtrinsicParam       `json:"params"`
 	ParamsRaw                   string                 `json:"params_raw"`
 	TransactionExtensionVersion int                    `json:"transaction_extension_version"`
+}
+
+// decodeSignature preserves the metadata-decoded value and records the exact
+// composite span. Only actual enum string payloads use the legacy flat output;
+// a struct with one string field must still retain its complete encoding.
+func (e *ExtrinsicDecoder) decodeSignature() interface{} {
+	start := e.Data.Offset
+	raw := e.ProcessAndUpdateData("ExtrinsicSignature")
+	span := e.Data.Data[start:e.Data.Offset]
+	e.Signature = utiles.BytesToHex(span)
+	if value, ok := raw.(string); ok {
+		e.Signature = value
+		return raw
+	}
+	runtimeType := scaleType.RuntimeType{Module: e.Module}
+	codec, _, err := runtimeType.GetCodec("ExtrinsicSignature", e.Spec)
+	if err != nil {
+		panic(err)
+	}
+	if enum, ok := codec.(*scaleType.Enum); ok && enum.TypeMapping != nil && len(span) > 0 {
+		index := int(span[0])
+		if fields, ok := raw.(map[string]interface{}); ok && index < len(enum.TypeMapping.Names) {
+			if value, ok := fields[enum.TypeMapping.Names[index]].(string); ok {
+				e.Signature = value
+			}
+		}
+	}
+	return raw
 }
 
 func (e *ExtrinsicDecoder) Process() {
@@ -299,15 +327,7 @@ func (e *ExtrinsicDecoder) Process() {
 				}
 			}
 			// ExtrinsicSignature
-			result.SignatureRaw = e.ProcessAndUpdateData("ExtrinsicSignature")
-			switch v := result.SignatureRaw.(type) {
-			case string:
-				e.Signature = v
-			case map[string]interface{}:
-				for _, value := range v {
-					e.Signature = value.(string)
-				}
-			}
+			result.SignatureRaw = e.decodeSignature()
 			decodedExtrinsicExtra = e.decodeExtrinsicExtra(&result)
 			if !decodedExtrinsicExtra {
 				e.Era = e.ProcessAndUpdateData("EraExtrinsic").(string)
@@ -368,16 +388,8 @@ func (e *ExtrinsicDecoder) Process() {
 				}
 			}
 			// ExtrinsicSignature
-			result.SignatureRaw = e.ProcessAndUpdateData("ExtrinsicSignature")
+			result.SignatureRaw = e.decodeSignature()
 			result.TransactionExtensionVersion = e.ProcessAndUpdateData("U8").(int)
-			switch v := result.SignatureRaw.(type) {
-			case string:
-				e.Signature = v
-			case map[string]interface{}:
-				for _, value := range v {
-					e.Signature = value.(string)
-				}
-			}
 			e.Era = e.ProcessAndUpdateData("EraExtrinsic").(string)
 			e.Nonce = int(e.ProcessAndUpdateData("Compact<U64>").(uint64))
 			// spec SignedExtensions
