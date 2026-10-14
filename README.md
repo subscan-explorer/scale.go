@@ -58,3 +58,11 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/iterin
 ## License
 
 The package is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+
+`EventsDecoder` expects one complete `System.Events` vector. A successful decode
+advances `Data.Offset` through every record and topic; trailing bytes, incomplete
+or noncanonical vector counts, invalid phases, and truncated 32-byte topics panic
+instead of producing a partial result. `Value` is assigned only after the entire
+vector passes. RPC callers should retain their panic-to-error boundary. The Quip
+conformance tests verify all 107 SHA-checked archived events and reject truncated
+or extended copies of each captured vector.
