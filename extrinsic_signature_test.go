@@ -79,7 +79,7 @@ func TestCompositeSignatureSpan(t *testing.T) {
 				"ExtrinsicSignature": test.typeDef,
 			})
 			result := signatureTestDecode(t, signatureTestBody(test.encoded, 0x84), signatureTestMetadata())
-			require.Equal(t, hex.EncodeToString(test.encoded), result.Signature)
+			require.Equal(t, "0x"+hex.EncodeToString(test.encoded), result.Signature)
 			require.Equal(t, test.encoded, utiles.HexToBytes(types.Encode("ExtrinsicSignature", result.SignatureRaw)))
 		})
 	}
@@ -98,7 +98,7 @@ func TestCompositeSignatureSpan(t *testing.T) {
 				var firstRaw interface{}
 				for repeat := 0; repeat < 20; repeat++ {
 					result := signatureTestDecode(t, signatureTestBody(encoded, version), metadata)
-					require.Equal(t, hex.EncodeToString(encoded), result.Signature)
+					require.Equal(t, "0x"+hex.EncodeToString(encoded), result.Signature)
 					require.IsType(t, map[string]interface{}{}, result.SignatureRaw)
 					if repeat == 0 {
 						firstRaw = result.SignatureRaw
@@ -163,7 +163,7 @@ func TestSignatureOutputConventions(t *testing.T) {
 		})
 		encoded := []byte{8, 0xde, 0xad} // Vec length is part of the composite envelope.
 		result := signatureTestDecode(t, signatureTestBody(encoded, 0x84), signatureTestMetadata())
-		require.Equal(t, "08dead", result.Signature)
+		require.Equal(t, "0x08dead", result.Signature)
 		require.Equal(t, map[string]interface{}{"Sr25519": "0xdead"}, result.SignatureRaw)
 	})
 }

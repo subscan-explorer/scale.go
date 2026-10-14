@@ -255,7 +255,7 @@ type GenericExtrinsic struct {
 	SignedExtensions            map[string]interface{} `json:"signed_extensions"`
 	AccountId                   interface{}            `json:"account_id"`
 	Signer                      interface{}            `json:"signer"`        // map[string]interface or string
-	Signature                   string                 `json:"signature"`     // Legacy string/enum payload, or full composite SCALE hex without 0x.
+	Signature                   string                 `json:"signature"`     // Legacy string/enum payload, or full composite SCALE hex with 0x.
 	SignatureRaw                interface{}            `json:"signature_raw"` // Original metadata-decoded value, retained for encoding.
 	Nonce                       int                    `json:"nonce"`
 	Era                         string                 `json:"era"`
@@ -275,7 +275,7 @@ func (e *ExtrinsicDecoder) decodeSignature() interface{} {
 	start := e.Data.Offset
 	raw := e.ProcessAndUpdateData("ExtrinsicSignature")
 	span := e.Data.Data[start:e.Data.Offset]
-	e.Signature = utiles.BytesToHex(span)
+	e.Signature = utiles.AddHex(utiles.BytesToHex(span))
 	if value, ok := raw.(string); ok {
 		e.Signature = value
 		return raw
