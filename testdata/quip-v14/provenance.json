@@ -1,0 +1,35 @@
+{
+  "capturedAt": "2026-10-14T05:43:36.256042+00:00",
+  "rpc": "https://bootnode-2.aglais.quip.network:20049/rpc",
+  "genesisHash": "0x59e064bddd49a920d1392693c728c3bf9867f2cf3e0f8fea8c2498b389b0c286",
+  "fixtureManifestSha256": "a77d59562ecab6aaf80173e70a1f6dcf210815f8af471c7ce356e7ef08bd4b89",
+  "sourceCaptureManifestSha256": "f19329bf8e57e616b472ec75f70557d0118051fd169a497585b9042f3e79474a",
+  "calls": [
+    {
+      "file": "015-330109-metadata_at_version_14-parent",
+      "method": "state_call",
+      "params": [
+        "Metadata_metadata_at_version",
+        "0x0e000000",
+        "0x35a630f63c6b33bd533c7e5bf907f069597d31d25716cc4799ed0b812923b19c"
+      ],
+      "isError": false,
+      "requestSha256": "7278121fc733818134eb2551a84f267c0303d3e333683500f5767e2c4930e208",
+      "responseSha256": "794cdd6c07be07b0a675627149e6b60d4a9deffb012d78dba98ce8b43d9048ad",
+      "responseBytes": 290507
+    },
+    {
+      "file": "056-330110-metadata_at_version_14-parent",
+      "method": "state_call",
+      "params": [
+        "Metadata_metadata_at_version",
+        "0x0e000000",
+        "0x0491855681bfeab729a03e0a7713a71e4abb7075e6d7933b969da03bcc84a73f"
+      ],
+      "isError": false,
+      "requestSha256": "342f419c4713aa4b33948848fe0f86e61b85f4e88c202578f04b87f118e65f87",
+      "responseSha256": "f5e6a1dcf865bccc9a80595f9637710be9ccfa1dd8c134922d5880058a66163c",
+      "responseBytes": 306827
+    }
+  ]
+}

@@ -41,6 +41,8 @@ func TestMetadataV14DecoderProcess(t *testing.T) {
 	if m.Version != "MetadataV14Decoder" {
 		t.Errorf("MetadataV14 version should equal 14")
 	}
+	assert.NotNil(t, m.Metadata.Type)
+	assert.Equal(t, len(utiles.HexToBytes(Kusama9370)), m.Data.Offset)
 
 }
 

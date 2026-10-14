@@ -2,6 +2,7 @@ package scalecodec
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/itering/scale.go/types"
 	"github.com/itering/scale.go/types/scaleBytes"
@@ -31,6 +32,9 @@ func (m *MetadataDecoder) Process() error {
 		m.Version = m.ProcessAndUpdateData("MetadataVersion").(string)
 		m.Metadata = m.ProcessAndUpdateData(m.Version).(types.MetadataStruct)
 		m.Metadata.MetadataVersion = int(metadataVersion.Int64())
+		if m.Metadata.MetadataVersion == 14 && m.Data.GetRemainingLength() != 0 {
+			return fmt.Errorf("metadata V14 has %d trailing bytes", m.Data.GetRemainingLength())
+		}
 		return nil
 	}
 	return errors.New("not metadata")
