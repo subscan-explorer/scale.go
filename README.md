@@ -27,6 +27,18 @@ As with other invalid SCALE input, `ExtrinsicDecoder.Process` reports decode
 failures by panicking; `GenericExtrinsic.Encode` returns an error for missing or
 unsupported extension layouts. V16 view function IDs are decoded as 32 bytes.
 
+### Signature output
+
+The JSON `signature` field preserves existing direct-string and enum-payload
+output (including Ed25519/Sr25519/Ecdsa `0x` prefixes). Composite metadata types
+now expose their **complete SCALE envelope as `0x`-prefixed hex**, including any
+enum tag, public key and length prefixes. A Quip signed envelope is 1660 bytes,
+so its string contains 3322 characters including `0x`. Unsigned extrinsics retain
+an empty signature. `signature_raw` retains the original decoded structure for
+byte-for-byte encoding; transaction bytes and hashes are unchanged. This corrects
+the bare-hex presentation introduced for composite signatures in this fork;
+consumers should strip the optional `0x` prefix when reading older stored rows.
+
 ## Installation
 
 ```bash
@@ -58,3 +70,11 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/iterin
 ## License
 
 The package is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+
+`EventsDecoder` expects one complete `System.Events` vector. A successful decode
+advances `Data.Offset` through every record and topic; trailing bytes, incomplete
+or noncanonical vector counts, invalid phases, and truncated 32-byte topics panic
+instead of producing a partial result. `Value` is assigned only after the entire
+vector passes. RPC callers should retain their panic-to-error boundary. The Quip
+conformance tests verify all 107 SHA-checked archived events and reject truncated
+or extended copies of each captured vector.

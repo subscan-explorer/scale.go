@@ -15,6 +15,7 @@ import (
 //    "lookup": "PortableRegistry",
 //    "pallets": "Vec<PalletMetadataV14>",
 //    "extrinsic": "ExtrinsicMetadataV14",
+//    "type": "SiLookupTypeId",
 // }
 
 type MetadataV14Decoder struct {
@@ -160,6 +161,11 @@ func (m *MetadataV14Decoder) Process() {
 	extrinsicMetadata := m.ProcessAndUpdateData("ExtrinsicMetadataV14").(map[string]interface{})
 	bm, _ = json.Marshal(extrinsicMetadata)
 	_ = json.Unmarshal(bm, &result.Extrinsic)
+	metadataType := m.ProcessAndUpdateData("SiLookupTypeId").(int)
+	if _, ok := portable[metadataType]; !ok {
+		panic(fmt.Sprintf("metadata V14 runtime type %d not found in portable registry", metadataType))
+	}
+	result.Type = &metadataType
 
 	for index, extension := range result.Extrinsic.SignedExtensions {
 		result.Extrinsic.SignedExtensions[index].TypeString = metadataSiType[extension.Type]
